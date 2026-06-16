@@ -1,0 +1,63 @@
+.sql-editor-container {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #1e1e1e;
+}
+
+.sql-editor-line-numbers {
+  padding: 8px 0;
+  background: #252526;
+  color: #858585;
+  text-align: right;
+  user-select: none;
+  overflow: hidden;
+  min-width: 40px;
+  flex-shrink: 0;
+}
+
+.sql-editor-line-number {
+  padding: 0 10px;
+  line-height: 20px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+}
+
+.sql-editor-textarea {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  outline: none;
+  resize: none;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: pre;
+  tab-size: 2;
+  overflow: auto;
+}
+
+.sql-editor-textarea::placeholder {
+  color: #6a6a6a;
+}
+
+.sql-editor-textarea::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.sql-editor-textarea::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.sql-editor-textarea::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 4px;
+}
+
+.sql-editor-textarea::-webkit-scrollbar-thumb:hover {
+  background: #5a5a5a;
+}
