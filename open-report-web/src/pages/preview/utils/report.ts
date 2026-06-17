@@ -25,6 +25,15 @@ export interface ChartConfig {
   option?: any
   height?: number | string
   width?: number | string
+  datasetId?: number
+  datasetName?: string
+  xAxisField?: string
+  yAxisFields?: string[]
+  x?: number
+  y?: number
+  linkageField?: string
+  linkageTargetId?: string
+  data?: Record<string, any>[]
 }
 
 export interface TableColumn {
@@ -172,6 +181,98 @@ export const isMobileDevice = (): boolean => {
   const userAgent = navigator.userAgent.toLowerCase()
   const mobileKeywords = ['android', 'iphone', 'ipad', 'ipod', 'blackberry', 'windows phone', 'mobile']
   return mobileKeywords.some((keyword) => userAgent.includes(keyword))
+}
+
+export const buildChartOption = (
+  chart: ChartConfig,
+  data: Record<string, any>[] = [],
+  linkageFilter?: { field: string; value: any }
+): Record<string, any> => {
+  let filteredData = data
+  if (linkageFilter && linkageFilter.field && linkageFilter.value !== undefined) {
+    filteredData = data.filter(row =>
+      String(row[linkageFilter.field]) === String(linkageFilter.value)
+    )
+  }
+
+  const title = chart.title || ''
+  const xField = chart.xAxisField || ''
+  const yFields = chart.yAxisFields || []
+
+  if (chart.type === 'pie') {
+    return {
+      title: { text: title, left: 'center', textStyle: { fontSize: 14 } },
+      tooltip: { trigger: 'item' },
+      legend: { bottom: 0 },
+      series: [{
+        type: 'pie',
+        radius: ['40%', '65%'],
+        itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+        data: filteredData.map((d: any) => ({
+          name: d[xField],
+          value: d[yFields[0] || '']
+        }))
+      }]
+    }
+  }
+
+  if (chart.type === 'radar') {
+    const indicators = filteredData.map((d: any) => ({
+      name: d[xField],
+      max: Math.max(...filteredData.map((r: any) => Number(r[yFields[0] || '']) || 0), 10) * 1.2
+    }))
+    return {
+      title: { text: title, left: 'center', textStyle: { fontSize: 14 } },
+      tooltip: {},
+      legend: { bottom: 0 },
+      radar: { indicator: indicators },
+      series: [{
+        type: 'radar',
+        data: yFields.map(yf => ({
+          value: filteredData.map((d: any) => d[yf]),
+          name: yf
+        }))
+      }]
+    }
+  }
+
+  if (chart.type === 'scatter') {
+    return {
+      title: { text: title, left: 'center', textStyle: { fontSize: 14 } },
+      tooltip: { trigger: 'item' },
+      grid: { top: 40, bottom: 30, left: 50, right: 20 },
+      xAxis: { type: 'value' },
+      yAxis: { type: 'value' },
+      series: [{
+        type: 'scatter',
+        symbolSize: 10,
+        data: filteredData.map((d: any) => [d[xField], d[yFields[0] || '']])
+      }]
+    }
+  }
+
+  const isArea = chart.type === 'area'
+  const seriesType = isArea ? 'line' : chart.type
+
+  const xAxisData = filteredData.map((d: any) => d[xField])
+  const series = yFields.map((yf: string) => ({
+    name: yf,
+    type: seriesType,
+    smooth: isArea || chart.type === 'line',
+    areaStyle: isArea ? {} : undefined,
+    itemStyle: chart.type === 'bar' ? { borderRadius: [4, 4, 0, 0] } : undefined,
+    data: filteredData.map((d: any) => d[yf])
+  }))
+
+  return {
+    title: { text: title, left: 'center', textStyle: { fontSize: 14 } },
+    tooltip: { trigger: 'axis' },
+    legend: { bottom: 0 },
+    grid: { top: 40, bottom: 30, left: 50, right: 20 },
+    xAxis: { type: 'category', data: xAxisData },
+    yAxis: { type: 'value' },
+    series
+  }
 }
 
 export const handlePrint = (contentId: string = 'report-content'): void => {

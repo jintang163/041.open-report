@@ -104,10 +104,17 @@ const DashboardViewer: React.FC = () => {
     if (!item.linkageField || !item.linkageTargetId) return
     const clickedName = params.name
     if (clickedName === undefined) return
-    setLinkageState(prev => ({
-      ...prev,
-      [item.linkageTargetId!]: { field: item.linkageField, value: clickedName }
-    }))
+    setLinkageState(prev => {
+      const current = prev[item.linkageTargetId!]
+      if (current && current.value === clickedName) {
+        const { [item.linkageTargetId!]: _, ...rest } = prev
+        return rest
+      }
+      return {
+        ...prev,
+        [item.linkageTargetId!]: { field: item.linkageField, value: clickedName }
+      }
+    })
   }
 
   if (loading) {

@@ -108,9 +108,9 @@ public class ChartDashboardController {
 
     @ApiOperation("保存大屏组件布局")
     @PostMapping("/{id}/items")
-    public Result<Void> saveItems(@PathVariable Long id, @RequestBody List<ChartDashboardItem> items) {
-        dashboardItemService.saveBatchItems(id, items);
-        return Result.success();
+    public Result<List<ChartDashboardItem>> saveItems(@PathVariable Long id, @RequestBody List<ChartDashboardItem> items) {
+        List<ChartDashboardItem> saved = dashboardItemService.saveBatchItems(id, items);
+        return Result.success(saved);
     }
 
     @ApiOperation("获取大屏组件列表")

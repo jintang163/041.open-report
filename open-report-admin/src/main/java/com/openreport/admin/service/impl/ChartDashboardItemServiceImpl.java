@@ -8,7 +8,10 @@ import com.openreport.admin.service.ChartDashboardItemService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class ChartDashboardItemServiceImpl extends ServiceImpl<ChartDashboardItemMapper, ChartDashboardItem> implements ChartDashboardItemService {
@@ -22,15 +25,45 @@ public class ChartDashboardItemServiceImpl extends ServiceImpl<ChartDashboardIte
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void saveBatchItems(Long dashboardId, List<ChartDashboardItem> items) {
-        remove(new LambdaQueryWrapper<ChartDashboardItem>()
-                .eq(ChartDashboardItem::getDashboardId, dashboardId));
+    public List<ChartDashboardItem> saveBatchItems(Long dashboardId, List<ChartDashboardItem> items) {
+        List<ChartDashboardItem> existingItems = listByDashboardId(dashboardId);
+        Set<Long> existingIds = new HashSet<>();
+        existingItems.forEach(item -> existingIds.add(item.getId()));
+
+        Set<Long> incomingIds = new HashSet<>();
+        List<ChartDashboardItem> toUpdate = new ArrayList<>();
+        List<ChartDashboardItem> toInsert = new ArrayList<>();
+
         if (items != null && !items.isEmpty()) {
-            items.forEach(item -> {
-                item.setId(null);
+            for (int i = 0; i < items.size(); i++) {
+                ChartDashboardItem item = items.get(i);
+                item.setSortOrder(i);
                 item.setDashboardId(dashboardId);
-            });
-            saveBatch(items);
+
+                if (item.getId() != null && existingIds.contains(item.getId())) {
+                    toUpdate.add(item);
+                    incomingIds.add(item.getId());
+                } else {
+                    item.setId(null);
+                    toInsert.add(item);
+                }
+            }
         }
+
+        Set<Long> toDelete = new HashSet<>(existingIds);
+        toDelete.removeAll(incomingIds);
+        if (!toDelete.isEmpty()) {
+            removeByIds(toDelete);
+        }
+
+        if (!toUpdate.isEmpty()) {
+            updateBatchById(toUpdate);
+        }
+
+        if (!toInsert.isEmpty()) {
+            saveBatch(toInsert);
+        }
+
+        return listByDashboardId(dashboardId);
     }
 }

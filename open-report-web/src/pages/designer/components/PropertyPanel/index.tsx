@@ -15,7 +15,8 @@ import {
   Divider,
   Space,
   Card,
-  List
+  List,
+  Popconfirm
 } from 'antd'
 import {
   DeleteOutlined,
@@ -57,9 +58,12 @@ const PropertyPanel: React.FC = () => {
     dataSources,
     conditionalFormats,
     charts,
+    selectedChartId,
     setConditionalFormatVisible,
     setChartConfigVisible,
     setExpressionEditorVisible,
+    setSelectedChartId,
+    removeChart,
     cellValue
   } = useDesignerStore()
 
@@ -505,32 +509,45 @@ const PropertyPanel: React.FC = () => {
       </div>
 
       {charts.length === 0 ? (
-        <Empty description={<Text type="secondary">暂无图表</Text>} />
+        <Empty description={<Text type="secondary">暂无图表，点击上方按钮新建</Text>} />
       ) : (
         <List
           bordered
           dataSource={charts}
           renderItem={(item: ChartConfig) => (
             <List.Item
+              style={{
+                background: selectedChartId === item.id ? '#e6f4ff' : undefined,
+                cursor: 'pointer',
+                padding: '8px 12px'
+              }}
+              onClick={() => setSelectedChartId(item.id)}
               actions={[
                 <Button
                   key="edit"
                   type="text"
                   size="small"
                   icon={<EditOutlined />}
-                  onClick={() => setChartConfigVisible(true, item)}
+                  onClick={(e) => { e.stopPropagation(); setChartConfigVisible(true, item) }}
                 >
                   编辑
                 </Button>,
-                <Button
+                <Popconfirm
                   key="delete"
-                  type="text"
-                  size="small"
-                  danger
-                  icon={<DeleteOutlined />}
+                  title="确定删除此图表？"
+                  onConfirm={(e) => { e?.stopPropagation(); removeChart(item.id) }}
+                  onCancel={(e) => e?.stopPropagation()}
                 >
-                  删除
-                </Button>
+                  <Button
+                    type="text"
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    删除
+                  </Button>
+                </Popconfirm>
               ]}
             >
               <List.Item.Meta

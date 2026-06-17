@@ -9,5 +9,5 @@ public interface ChartDashboardItemService extends IService<ChartDashboardItem> 
 
     List<ChartDashboardItem> listByDashboardId(Long dashboardId);
 
-    void saveBatchItems(Long dashboardId, List<ChartDashboardItem> items);
+    List<ChartDashboardItem> saveBatchItems(Long dashboardId, List<ChartDashboardItem> items);
 }

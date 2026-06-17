@@ -11,10 +11,13 @@ import {
   Row,
   Col,
   Space,
-  message
+  message,
+  Spin,
+  Divider
 } from 'antd'
 import ReactECharts from 'echarts-for-react'
 import { useDesignerStore, type ChartConfig, type DataSetWithFields } from '../../store/designer'
+import { getDatasetPreview } from '@/api/dataset'
 import type { EChartsOption } from 'echarts'
 
 const CHART_TYPES = [
@@ -26,22 +29,67 @@ const CHART_TYPES = [
   { value: 'radar', label: '雷达图', icon: '🕸️' }
 ]
 
-const generateSampleData = (dataset: DataSetWithFields | undefined, xField: string | undefined, yFields: string[] | undefined) => {
-  const sampleData: Record<string, any>[] = []
-  const categories = ['一月', '二月', '三月', '四月', '五月', '六月']
-
-  if (xField && yFields && yFields.length > 0) {
-    categories.forEach((cat, idx) => {
-      const item: Record<string, any> = {}
-      item[xField] = cat
-      yFields.forEach((yf) => {
-        item[yf] = Math.floor(Math.random() * 100) + 20
-      })
-      sampleData.push(item)
-    })
+const buildPreviewOption = (
+  type: string,
+  title: string,
+  data: Record<string, any>[],
+  xField: string,
+  yFields: string[]
+): EChartsOption => {
+  if (type === 'pie') {
+    return {
+      title: { text: title || '饼图', left: 'center' },
+      tooltip: { trigger: 'item' },
+      legend: { bottom: 0 },
+      series: [{
+        type: 'pie',
+        radius: '60%',
+        itemStyle: { borderRadius: 4 },
+        data: data.map((d: any) => ({
+          name: d[xField],
+          value: d[yFields?.[0] || '']
+        }))
+      }]
+    }
   }
 
-  return sampleData
+  if (type === 'radar') {
+    const indicators = data.map((d: any) => ({
+      name: d[xField],
+      max: Math.max(...data.map((r: any) => Number(r[yFields?.[0] || '']) || 0), 10) * 1.2
+    }))
+    return {
+      title: { text: title || '雷达图', left: 'center' },
+      tooltip: {},
+      radar: { indicator: indicators },
+      series: [{
+        type: 'radar',
+        data: (yFields || []).map((yf: string) => ({
+          value: data.map((d: any) => d[yf]),
+          name: yf
+        }))
+      }]
+    }
+  }
+
+  const xAxisData = data.map((d: any) => d[xField])
+  const series = (yFields || []).map((yf: string) => ({
+    name: yf,
+    type: type === 'area' ? 'line' : type,
+    areaStyle: type === 'area' ? {} : undefined,
+    smooth: type === 'area' || type === 'line',
+    data: data.map((d: any) => d[yf])
+  }))
+
+  return {
+    title: { text: title || '图表', left: 'center' },
+    tooltip: { trigger: 'axis' },
+    legend: { bottom: 0 },
+    grid: { top: 50, bottom: 40, left: 50, right: 30 },
+    xAxis: { type: 'category', data: xAxisData },
+    yAxis: { type: 'value' },
+    series
+  }
 }
 
 const ChartConfigModal: React.FC = () => {
@@ -50,6 +98,7 @@ const ChartConfigModal: React.FC = () => {
     editingChart,
     dataSources,
     selectedRange,
+    charts,
     addChart,
     updateChart,
     setChartConfigVisible
@@ -57,6 +106,8 @@ const ChartConfigModal: React.FC = () => {
 
   const [form] = Form.useForm()
   const [formValues, setFormValues] = useState<any>({})
+  const [previewData, setPreviewData] = useState<Record<string, any>[]>([])
+  const [previewLoading, setPreviewLoading] = useState(false)
 
   useEffect(() => {
     if (chartConfigVisible) {
@@ -69,23 +120,53 @@ const ChartConfigModal: React.FC = () => {
           yAxisFields: editingChart.yAxisFields,
           seriesName: editingChart.seriesName,
           width: editingChart.width || 400,
-          height: editingChart.height || 300
+          height: editingChart.height || 300,
+          x: editingChart.x,
+          y: editingChart.y,
+          linkageField: editingChart.linkageField,
+          linkageTargetId: editingChart.linkageTargetId
         })
       } else {
+        const offset = charts.length * 20
         form.setFieldsValue({
           type: 'bar',
           title: '',
           width: 400,
-          height: 300
+          height: 300,
+          x: 150 + offset,
+          y: 100 + offset,
+          linkageField: undefined,
+          linkageTargetId: undefined
         })
       }
     }
-  }, [chartConfigVisible, editingChart, form])
+  }, [chartConfigVisible, editingChart, form, charts.length])
 
   useEffect(() => {
     const values = form.getFieldsValue()
     setFormValues(values)
   }, [form])
+
+  useEffect(() => {
+    if (formValues.datasetId && formValues.xAxisField && formValues.yAxisFields?.length > 0) {
+      loadPreviewData()
+    } else {
+      setPreviewData([])
+    }
+  }, [formValues.datasetId, formValues.xAxisField, formValues.yAxisFields])
+
+  const loadPreviewData = async () => {
+    if (!formValues.datasetId) return
+    setPreviewLoading(true)
+    try {
+      const res = await getDatasetPreview(formValues.datasetId, {}, 100)
+      setPreviewData(res.rows || [])
+    } catch {
+      setPreviewData([])
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
 
   const getAllDatasets = (): DataSetWithFields[] => {
     const datasets: DataSetWithFields[] = []
@@ -107,70 +188,8 @@ const ChartConfigModal: React.FC = () => {
   }
 
   const getChartOption = (): EChartsOption => {
-    const { type, title, datasetId, xAxisField, yAxisFields, seriesName } = formValues
-    const dataset = getDatasetById(datasetId)
-    const fields = dataset?.fields || []
-
-    const sampleData = generateSampleData(dataset, xAxisField, yAxisFields)
-
-    if (type === 'pie') {
-      const xFieldName = xAxisField || (fields[0]?.name ?? '')
-      const yFieldName = yAxisFields?.[0] || (fields[1]?.name ?? '')
-
-      return {
-        title: { text: title || '饼图', left: 'center' },
-        tooltip: { trigger: 'item' },
-        legend: { bottom: 0 },
-        series: [
-          {
-            type: 'pie',
-            radius: '60%',
-            data: sampleData.map((d) => ({
-              name: d[xFieldName],
-              value: d[yFieldName]
-            }))
-          }
-        ]
-      }
-    }
-
-    if (type === 'radar') {
-      const indicators = (yAxisFields || []).map((f: string) => ({ name: f, max: 150 }))
-      return {
-        title: { text: title || '雷达图', left: 'center' },
-        tooltip: {},
-        radar: { indicator: indicators },
-        series: [
-          {
-            type: 'radar',
-            data: [
-              {
-                value: (yAxisFields || []).map(() => Math.floor(Math.random() * 100) + 30),
-                name: seriesName || '数据'
-              }
-            ]
-          }
-        ]
-      }
-    }
-
-    const xAxisData = sampleData.map((d) => d[xAxisField || ''])
-    const series = (yAxisFields || []).map((yf: string) => ({
-      name: yf,
-      type: type === 'area' ? 'line' : type,
-      areaStyle: type === 'area' ? {} : undefined,
-      data: sampleData.map((d) => d[yf])
-    }))
-
-    return {
-      title: { text: title || (CHART_TYPES.find((c) => c.value === type)?.label || '图表'), left: 'center' },
-      tooltip: { trigger: 'axis' },
-      legend: { bottom: 0 },
-      grid: { top: 50, bottom: 40, left: 50, right: 30 },
-      xAxis: { type: 'category', data: xAxisData },
-      yAxis: { type: 'value' },
-      series
-    }
+    const { type, title, xAxisField, yAxisFields, seriesName } = formValues
+    return buildPreviewOption(type, title, previewData, xAxisField, yAxisFields || [])
   }
 
   const handleOk = async () => {
@@ -190,6 +209,10 @@ const ChartConfigModal: React.FC = () => {
         seriesName: values.seriesName,
         width: values.width,
         height: values.height,
+        x: values.x,
+        y: values.y,
+        linkageField: values.linkageField,
+        linkageTargetId: values.linkageTargetId,
         position: selectedRange
           ? {
               startRow: selectedRange.start.row,
@@ -329,6 +352,33 @@ const ChartConfigModal: React.FC = () => {
                         <InputNumber min={100} max={1500} step={50} />
                       </Form.Item>
                     </Space>
+
+                    <Space>
+                      <Form.Item label="X坐标" name="x">
+                        <InputNumber min={0} max={3000} step={10} />
+                      </Form.Item>
+                      <Form.Item label="Y坐标" name="y">
+                        <InputNumber min={0} max={2000} step={10} />
+                      </Form.Item>
+                    </Space>
+
+                    <Divider style={{ margin: '8px 0' }} />
+
+                    <div style={{ fontWeight: 500, marginBottom: 8 }}>图表联动</div>
+
+                    <Form.Item label="联动字段" name="linkageField" extra="点击此图表时传递的筛选字段">
+                      <Input placeholder="如：category（可选）" />
+                    </Form.Item>
+
+                    <Form.Item label="联动目标图表" name="linkageTargetId" extra="点击此图表时，目标图表将按联动字段筛选">
+                      <Select placeholder="请选择联动目标" allowClear>
+                        {charts.filter(c => c.id !== editingChart?.id).map(c => (
+                          <Select.Option key={c.id} value={c.id}>
+                            {c.title || `图表-${c.id}`} ({c.type})
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    </Form.Item>
                   </Col>
                 </Row>
               )
@@ -337,11 +387,28 @@ const ChartConfigModal: React.FC = () => {
               key: 'preview',
               label: '预览',
               children: (
-                <Card style={{ height: 360 }}>
+                <Card style={{ height: 360, position: 'relative' }}>
+                  {previewLoading && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'rgba(255,255,255,0.7)',
+                      zIndex: 10
+                    }}>
+                      <Spin tip="加载数据..." />
+                    </div>
+                  )}
                   <ReactECharts
                     option={getChartOption()}
                     style={{ height: 320, width: '100%' }}
                     notMerge
+                    lazyUpdate
                   />
                 </Card>
               )

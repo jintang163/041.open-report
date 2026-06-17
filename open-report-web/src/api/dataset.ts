@@ -40,3 +40,12 @@ export const executeDataset = (datasourceId: number, sql: string): Promise<any[]
 export const getDatasetColumns = (id: number): Promise<{ name: string; type: string }[]> => {
   return get(`/dataset/columns/${id}`)
 }
+
+export const getDatasetPreview = (
+  id: number,
+  params?: Record<string, any>,
+  limit?: number
+): Promise<{ rows: Record<string, any>[]; total?: number; success?: boolean }> => {
+  const query = limit !== undefined ? `?limit=${limit}` : ''
+  return post(`/dataset/preview/${id}${query}`, params || {})
+}

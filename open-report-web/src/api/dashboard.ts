@@ -25,12 +25,12 @@ export const deleteDashboard = (id: number): Promise<void> => {
   return del(`/dashboard/${id}`)
 }
 
-export const saveDashboardItems = (id: number, items: ChartDashboardItem[]): Promise<void> => {
+export const saveDashboardItems = (id: number, items: ChartDashboardItem[]): Promise<ChartDashboardItem[]> => {
   return post(`/dashboard/${id}/items`, items)
 }
 
 export const getDashboardItems = (id: number): Promise<ChartDashboardItem[]> => {
-  return get(`/${id}/items`)
+  return get(`/dashboard/${id}/items`)
 }
 
 export const getChartData = (datasetId: number, params?: Record<string, any>): Promise<Record<string, any>[]> => {

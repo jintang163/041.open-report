@@ -422,7 +422,30 @@ const DashboardDesignerPage: React.FC = () => {
         yFields: item.yFields || [],
         chartConfig: item.chartConfig || {}
       }))
-      await saveDashboardItems(savedDashboard.id!, saveItems)
+      const savedItems = await saveDashboardItems(savedDashboard.id!, saveItems)
+
+      const idMapping: Record<number, number> = {}
+      savedItems.forEach((savedItem, idx) => {
+        const originalItem = saveItems[idx]
+        if (originalItem.id && savedItem.id) {
+          idMapping[originalItem.id] = savedItem.id
+        }
+      })
+
+      const remappedItems = savedItems.map(item => ({
+        ...item,
+        yFields: typeof (item as any).yFields === 'string'
+          ? JSON.parse((item as any).yFields)
+          : (item.yFields || []),
+        chartConfig: typeof (item as any).chartConfig === 'string'
+          ? JSON.parse((item as any).chartConfig)
+          : (item.chartConfig || {}),
+        linkageTargetId: item.linkageTargetId && idMapping[item.linkageTargetId]
+          ? idMapping[item.linkageTargetId]
+          : item.linkageTargetId
+      }))
+
+      setItems(remappedItems)
       setIsDirty(false)
       message.success('保存成功')
     } catch {
@@ -449,10 +472,17 @@ const DashboardDesignerPage: React.FC = () => {
     if (!item.linkageField || !item.linkageTargetId) return
     const clickedName = params.name
     if (clickedName === undefined) return
-    setLinkageState(prev => ({
-      ...prev,
-      [item.linkageTargetId!]: { field: item.linkageField, value: clickedName }
-    }))
+    setLinkageState(prev => {
+      const current = prev[item.linkageTargetId!]
+      if (current && current.value === clickedName) {
+        const { [item.linkageTargetId!]: _, ...rest } = prev
+        return rest
+      }
+      return {
+        ...prev,
+        [item.linkageTargetId!]: { field: item.linkageField, value: clickedName }
+      }
+    })
   }
 
   if (loading) {

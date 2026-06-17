@@ -7,6 +7,7 @@ import PropertyPanel from './components/PropertyPanel'
 import ExpressionEditor from './components/ExpressionEditor'
 import ConditionalFormatModal from './components/ConditionalFormatModal'
 import ChartConfigModal from './components/ChartConfigModal'
+import ChartCanvasOverlay from './components/ChartCanvasOverlay'
 import { useDesignerStore } from './store/designer'
 import {
   initLuckysheet,
@@ -352,6 +353,7 @@ const DesignerPage: React.FC = () => {
               padding: 0
             }}
           />
+          <ChartCanvasOverlay />
           {!isInitialized.current && (
             <div
               style={{

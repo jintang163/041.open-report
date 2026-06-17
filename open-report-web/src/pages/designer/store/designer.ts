@@ -73,14 +73,19 @@ export interface ChartConfig {
     endRow: number
     endCol: number
   }
+  x?: number
+  y?: number
   width?: number
   height?: number
+  linkageField?: string
+  linkageTargetId?: string
 }
 
 export interface DesignerState {
   luckysheetInstance: any | null
   selectedCell: CellPosition | null
   selectedRange: { start: CellPosition; end: CellPosition } | null
+  selectedChartId: string | null
   cellValue: string
   dataSources: DataSourceWithDataSets[]
   conditionalFormats: ConditionalFormatRule[]
@@ -100,6 +105,7 @@ export interface DesignerState {
   setLuckysheetInstance: (instance: any) => void
   setSelectedCell: (cell: CellPosition | null) => void
   setSelectedRange: (range: { start: CellPosition; end: CellPosition } | null) => void
+  setSelectedChartId: (id: string | null) => void
   setCellValue: (value: string) => void
   setDataSources: (sources: DataSourceWithDataSets[]) => void
   setConditionalFormats: (formats: ConditionalFormatRule[]) => void
@@ -124,6 +130,7 @@ const initialState = {
   luckysheetInstance: null,
   selectedCell: null,
   selectedRange: null,
+  selectedChartId: null,
   cellValue: '',
   dataSources: [],
   conditionalFormats: [],
@@ -145,8 +152,9 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
   ...initialState,
 
   setLuckysheetInstance: (instance) => set({ luckysheetInstance: instance }),
-  setSelectedCell: (cell) => set({ selectedCell: cell }),
+  setSelectedCell: (cell) => set({ selectedCell: cell, selectedChartId: null }),
   setSelectedRange: (range) => set({ selectedRange: range }),
+  setSelectedChartId: (id) => set({ selectedChartId: id, selectedCell: null, selectedRange: null }),
   setCellValue: (value) => set({ cellValue: value }),
   setDataSources: (sources) => set({ dataSources: sources }),
   setConditionalFormats: (formats) => set({ conditionalFormats: formats }),
