@@ -6,6 +6,7 @@ import Designer from '@/pages/designer'
 import DashboardList from '@/pages/dashboard-list'
 import DashboardDesigner from '@/pages/dashboard-designer'
 import DashboardViewer from '@/pages/dashboard-viewer'
+import AiReportGenerator from '@/pages/ai-report'
 import UserManagement from '@/pages/system/user'
 import RoleManagement from '@/pages/system/role'
 import MenuManagement from '@/pages/system/menu'
@@ -71,6 +72,11 @@ const routes = [
             path: 'dataset',
             element: withLoading(DatasetManagement)(),
             meta: { title: '数据集管理', icon: 'TableOutlined' }
+          },
+          {
+            path: 'ai-report',
+            element: withLoading(AiReportGenerator)(),
+            meta: { title: 'AI智能报表', icon: 'ThunderboltOutlined' }
           },
           {
             path: 'report',

@@ -15,7 +15,8 @@ import {
   SafetyCertificateOutlined,
   ScheduleOutlined,
   LinkOutlined,
-  FundScreenOutlined
+  FundScreenOutlined,
+  ThunderboltOutlined
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useUserStore } from '@/store/user'
@@ -33,7 +34,8 @@ const iconMap: Record<string, any> = {
   SafetyCertificateOutlined: <SafetyCertificateOutlined />,
   ScheduleOutlined: <ScheduleOutlined />,
   LinkOutlined: <LinkOutlined />,
-  FundScreenOutlined: <FundScreenOutlined />
+  FundScreenOutlined: <FundScreenOutlined />,
+  ThunderboltOutlined: <ThunderboltOutlined />
 }
 
 const menuItems = [
@@ -51,6 +53,11 @@ const menuItems = [
     key: '/dataset',
     icon: iconMap['TableOutlined'],
     label: '数据集管理'
+  },
+  {
+    key: '/ai-report',
+    icon: iconMap['ThunderboltOutlined'],
+    label: 'AI智能报表'
   },
   {
     key: '/report',
@@ -149,6 +156,7 @@ const BasicLayout = () => {
       dashboard: '仪表盘',
       datasource: '数据源管理',
       dataset: '数据集管理',
+      'ai-report': 'AI智能报表',
       report: '报表管理',
       schedule: '调度管理',
       screen: '可视化大屏',
