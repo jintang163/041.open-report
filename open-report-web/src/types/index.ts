@@ -201,3 +201,121 @@ export interface DashboardDetail {
   dashboard: ChartDashboard
   items: ChartDashboardItem[]
 }
+
+export type RowStatus = 'INSERT' | 'UPDATE' | 'DELETE'
+export type SubmitStatus = 'PROCESSING' | 'SUCCESS' | 'PARTIAL' | 'FAIL' | 'PENDING'
+export type FieldType = 'STRING' | 'NUMBER' | 'DATE' | 'DATETIME' | 'BOOLEAN'
+
+export interface WritebackField {
+  id?: number
+  cellPosition: string
+  fieldName: string
+  fieldType: FieldType
+  editable?: number
+  required?: number
+  defaultValue?: string
+  validationRule?: string
+  validationMessage?: string
+}
+
+export interface WritebackConfig {
+  id?: number
+  reportId: number
+  dataSourceId: number
+  tableName: string
+  primaryKeyField: string
+  primaryKeyColumn?: string
+  versionField?: string
+  logicDeleteField?: string
+  logicDeleteValue?: string
+  logicNotDeleteValue?: string
+  batchSupport?: number
+  transactionEnable?: number
+  fields?: WritebackField[]
+  createTime?: string
+  updateTime?: string
+}
+
+export interface CellDataChange {
+  rowIndex: number
+  rowStatus: RowStatus
+  oldData?: Record<string, any>
+  newData?: Record<string, any>
+  cellValues?: Record<string, string>
+}
+
+export interface DataSubmitRequest {
+  reportId: number
+  configId?: number
+  params?: Record<string, any>
+  changes: CellDataChange[]
+}
+
+export interface DataSubmitResult {
+  batchNo: string
+  status: SubmitStatus
+  totalCount: number
+  successCount: number
+  failCount: number
+  executeTime?: number
+  errorMsg?: string
+  details?: SubmitDetailResult[]
+}
+
+export interface SubmitDetailResult {
+  rowIndex: number
+  rowStatus: RowStatus
+  status: SubmitStatus
+  errorMsg?: string
+  executeSql?: string
+}
+
+export interface WritebackHistory {
+  id: number
+  reportId: number
+  configId: number
+  batchNo: string
+  totalCount: number
+  successCount: number
+  failCount: number
+  status: SubmitStatus
+  executeTime?: number
+  errorMsg?: string
+  params?: string
+  createTime: string
+  createBy?: number
+  details?: WritebackDetail[]
+}
+
+export interface WritebackDetail {
+  id: number
+  historyId: number
+  rowIndex: number
+  rowStatus: RowStatus
+  primaryKeyValue?: string
+  oldData?: string
+  newData?: string
+  status: SubmitStatus
+  executeSql?: string
+  errorMsg?: string
+  createTime: string
+}
+
+export interface EditableCellConfig {
+  editable: boolean
+  fieldName?: string
+  fieldType?: FieldType
+  required?: boolean
+  validationRule?: string
+  validationMessage?: string
+  cellPosition: string
+}
+
+export interface EditableRowData {
+  rowIndex: number
+  rowStatus: RowStatus
+  originalData: Record<string, any>
+  currentData: Record<string, any>
+  cells: Record<string, EditableCellConfig>
+  dirty: boolean
+}

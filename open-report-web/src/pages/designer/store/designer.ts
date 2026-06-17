@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { DataSet, DataSourceConfig } from '../../../types'
+import type { DataSet, DataSourceConfig, WritebackConfig, WritebackField } from '../../../types'
 
 export interface FieldItem {
   name: string
@@ -101,6 +101,9 @@ export interface DesignerState {
   editingChart: ChartConfig | null
   expandedDataSourceKeys: string[]
   expandedDataSetKeys: string[]
+  writebackConfigVisible: boolean
+  writebackConfigs: WritebackConfig[]
+  currentWritebackConfig: WritebackConfig | null
 
   setLuckysheetInstance: (instance: any) => void
   setSelectedCell: (cell: CellPosition | null) => void
@@ -123,6 +126,12 @@ export interface DesignerState {
   setChartConfigVisible: (visible: boolean, chart?: ChartConfig | null) => void
   toggleDataSourceExpand: (key: string) => void
   toggleDataSetExpand: (key: string) => void
+  setWritebackConfigVisible: (visible: boolean, config?: WritebackConfig | null) => void
+  setWritebackConfigs: (configs: WritebackConfig[]) => void
+  addWritebackConfig: (config: WritebackConfig) => void
+  updateWritebackConfig: (config: WritebackConfig) => void
+  removeWritebackConfig: (id: number) => void
+  setCurrentWritebackConfig: (config: WritebackConfig | null) => void
   reset: () => void
 }
 
@@ -145,7 +154,10 @@ const initialState = {
   chartConfigVisible: false,
   editingChart: null,
   expandedDataSourceKeys: [],
-  expandedDataSetKeys: []
+  expandedDataSetKeys: [],
+  writebackConfigVisible: false,
+  writebackConfigs: [],
+  currentWritebackConfig: null
 }
 
 export const useDesignerStore = create<DesignerState>((set, get) => ({
@@ -215,5 +227,20 @@ export const useDesignerStore = create<DesignerState>((set, get) => ({
       set({ expandedDataSetKeys: [...expandedDataSetKeys, key] })
     }
   },
+  setWritebackConfigVisible: (visible, config = null) => set({
+    writebackConfigVisible: visible,
+    currentWritebackConfig: config
+  }),
+  setWritebackConfigs: (configs) => set({ writebackConfigs: configs }),
+  addWritebackConfig: (config) => set({
+    writebackConfigs: [...get().writebackConfigs, config]
+  }),
+  updateWritebackConfig: (config) => set({
+    writebackConfigs: get().writebackConfigs.map(c => c.id === config.id ? config : c)
+  }),
+  removeWritebackConfig: (id) => set({
+    writebackConfigs: get().writebackConfigs.filter(c => c.id !== id)
+  }),
+  setCurrentWritebackConfig: (config) => set({ currentWritebackConfig: config }),
   reset: () => set(initialState)
 }))

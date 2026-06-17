@@ -21,7 +21,9 @@ import {
 import {
   DeleteOutlined,
   EditOutlined,
-  PlusOutlined
+  PlusOutlined,
+  SettingOutlined,
+  SaveOutlined
 } from '@ant-design/icons'
 import { useDesignerStore, type CellStyle, type CellDataBinding, type ChartConfig, type ConditionalFormatRule } from '../../store/designer'
 import {
@@ -64,25 +66,34 @@ const PropertyPanel: React.FC = () => {
     setExpressionEditorVisible,
     setSelectedChartId,
     removeChart,
-    cellValue
+    cellValue,
+    writebackConfigs,
+    setWritebackConfigVisible,
+    templateId
   } = useDesignerStore()
 
   const [form] = Form.useForm()
   const [styleForm] = Form.useForm()
   const [bindingForm] = Form.useForm()
+  const [writebackForm] = Form.useForm()
 
   const [cellData, setCellData] = useState<any>({})
   const [customData, setCustomData] = useState<any>({})
   const [binding, setBinding] = useState<CellDataBinding | null>(null)
+  const [cellWritebackConfig, setCellWritebackConfig] = useState<any>({})
 
   useEffect(() => {
     if (selectedCell) {
       const value = getCellValue(selectedCell.row, selectedCell.col)
       const custom = getCellCustomData(selectedCell.row, selectedCell.col)
+      const cellPos = cellPositionToRef(selectedCell.row, selectedCell.col)
 
       setCellData({ value })
       setCustomData(custom || {})
       setBinding(custom?.dataBinding || null)
+
+      const writebackConfig = custom?.writeback || {}
+      setCellWritebackConfig(writebackConfig)
 
       form.setFieldsValue({
         value: value ?? '',
@@ -110,8 +121,18 @@ const PropertyPanel: React.FC = () => {
         expression: custom?.dataBinding?.expression || value,
         format: custom?.dataBinding?.format || ''
       })
+
+      writebackForm.setFieldsValue({
+        editable: writebackConfig.editable || false,
+        fieldName: writebackConfig.fieldName || '',
+        fieldType: writebackConfig.fieldType || 'STRING',
+        required: writebackConfig.required || false,
+        validationRule: writebackConfig.validationRule || '',
+        validationMessage: writebackConfig.validationMessage || '',
+        cellPosition: cellPos
+      })
     }
-  }, [selectedCell, form, styleForm, bindingForm])
+  }, [selectedCell, form, styleForm, bindingForm, writebackForm])
 
   const handleStyleChange = (changedValues: any) => {
     if (!selectedCell) return
@@ -180,6 +201,31 @@ const PropertyPanel: React.FC = () => {
 
   const handleOpenExpressionEditor = () => {
     setExpressionEditorVisible(true, bindingForm.getFieldValue('expression'))
+  }
+
+  const handleWritebackSave = async () => {
+    if (!selectedCell) return
+    try {
+      const values = await writebackForm.validateFields()
+      const newWritebackConfig = {
+        editable: values.editable,
+        fieldName: values.fieldName,
+        fieldType: values.fieldType,
+        required: values.required,
+        validationRule: values.validationRule,
+        validationMessage: values.validationMessage,
+        cellPosition: values.cellPosition
+      }
+
+      setCellWritebackConfig(newWritebackConfig)
+      const existingCustom = getCellCustomData(selectedCell.row, selectedCell.col) || {}
+      setCellCustomData(selectedCell.row, selectedCell.col, {
+        ...existingCustom,
+        writeback: newWritebackConfig
+      })
+      refreshLuckysheet()
+    } catch {
+    }
   }
 
   const cellPropertiesTab = (
@@ -608,6 +654,175 @@ const PropertyPanel: React.FC = () => {
     </div>
   )
 
+  const writebackTab = (
+    <div style={{ padding: 12 }}>
+      <div style={{ marginBottom: 12 }}>
+        <Button
+          type="primary"
+          icon={<SettingOutlined />}
+          onClick={() => setWritebackConfigVisible(true)}
+          block
+        >
+          配置回写规则
+        </Button>
+      </div>
+
+      {writebackConfigs.length > 0 && (
+        <Card size="small" title="已配置的回写规则" style={{ marginBottom: 12 }}>
+          <List
+            size="small"
+            dataSource={writebackConfigs}
+            renderItem={(config) => (
+              <List.Item
+                actions={[
+                  <Button
+                    key="edit"
+                    type="text"
+                    size="small"
+                    icon={<EditOutlined />}
+                    onClick={(e) => { e.stopPropagation(); setWritebackConfigVisible(true, config) }}
+                  >
+                    编辑
+                  </Button>,
+                  <Popconfirm
+                    key="delete"
+                    title="确定删除此回写规则？"
+                    onConfirm={(e) => { e?.stopPropagation() }}
+                    onCancel={(e) => e?.stopPropagation()}
+                  >
+                    <Button
+                      type="text"
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      删除
+                    </Button>
+                  </Popconfirm>
+                ]}
+              >
+                <List.Item.Meta
+                  title={config.tableName}
+                  description={
+                    <Space direction="vertical" size={2}>
+                      <Text type="secondary">主键: {config.primaryKeyField}</Text>
+                      <Text type="secondary">字段数: {config.fields?.length || 0}</Text>
+                    </Space>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        </Card>
+      )}
+
+      <Divider>单元格回写配置</Divider>
+
+      {selectedCell ? (
+        <Form form={writebackForm} layout="vertical">
+          <Card size="small" title="单元格信息" style={{ marginBottom: 12 }}>
+            <Space direction="vertical" style={{ width: '100%' }} size={12}>
+              <div>
+                <Text type="secondary">单元格位置</Text>
+                <div>
+                  <Text strong>
+                    {cellPositionToRef(selectedCell.row, selectedCell.col)}
+                  </Text>
+                </div>
+              </div>
+            </Space>
+          </Card>
+
+          <Card size="small" title="回写设置" style={{ marginBottom: 12 }}>
+            <Space direction="vertical" style={{ width: '100%' }} size={12}>
+              <Form.Item name="editable" valuePropName="checked" style={{ marginBottom: 0 }}>
+                <Switch checkedChildren="可编辑" unCheckedChildren="只读" />
+              </Form.Item>
+
+              <Form.Item noStyle shouldUpdate={(prev, cur) => prev.editable !== cur.editable}>
+                {({ getFieldValue }) => {
+                  const editable = getFieldValue('editable')
+                  if (!editable) return null
+
+                  return (
+                    <Space direction="vertical" style={{ width: '100%' }} size={12}>
+                      <Form.Item
+                        label="字段名"
+                        name="fieldName"
+                        rules={[{ required: true, message: '请输入字段名' }]}
+                        style={{ marginBottom: 0 }}
+                      >
+                        <Input placeholder="请输入对应的数据表字段名" />
+                      </Form.Item>
+
+                      <Form.Item
+                        label="字段类型"
+                        name="fieldType"
+                        rules={[{ required: true, message: '请选择字段类型' }]}
+                        style={{ marginBottom: 0 }}
+                      >
+                        <Select>
+                          <Select.Option value="STRING">字符串</Select.Option>
+                          <Select.Option value="NUMBER">数值</Select.Option>
+                          <Select.Option value="DATE">日期</Select.Option>
+                          <Select.Option value="DATETIME">日期时间</Select.Option>
+                          <Select.Option value="BOOLEAN">布尔值</Select.Option>
+                        </Select>
+                      </Form.Item>
+
+                      <Form.Item name="required" valuePropName="checked" style={{ marginBottom: 0 }}>
+                        <Switch checkedChildren="必填" unCheckedChildren="可选" />
+                      </Form.Item>
+
+                      <Form.Item
+                        label="校验规则(正则)"
+                        name="validationRule"
+                        style={{ marginBottom: 0 }}
+                      >
+                        <Input placeholder="例如: ^\\d+$ 表示只能输入数字" />
+                      </Form.Item>
+
+                      <Form.Item
+                        label="校验失败提示"
+                        name="validationMessage"
+                        style={{ marginBottom: 0 }}
+                      >
+                        <Input placeholder="例如: 只能输入数字" />
+                      </Form.Item>
+                    </Space>
+                  )
+                }}
+              </Form.Item>
+            </Space>
+          </Card>
+
+          <Button type="primary" icon={<SaveOutlined />} onClick={handleWritebackSave} block>
+            保存单元格配置
+          </Button>
+
+          {cellWritebackConfig?.editable && (
+            <>
+              <Divider>当前配置</Divider>
+              <Card size="small" type="inner">
+                <Space direction="vertical" size={4}>
+                  <Text type="secondary">字段名: {cellWritebackConfig.fieldName}</Text>
+                  <Text type="secondary">类型: {cellWritebackConfig.fieldType}</Text>
+                  <Text type="secondary">必填: {cellWritebackConfig.required ? '是' : '否'}</Text>
+                  {cellWritebackConfig.validationRule && (
+                    <Text type="secondary">校验: {cellWritebackConfig.validationRule}</Text>
+                  )}
+                </Space>
+              </Card>
+            </>
+          )}
+        </Form>
+      ) : (
+        <Empty description={<Text type="secondary">请选择单元格</Text>} />
+      )}
+    </div>
+  )
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '12px 12px 0', borderBottom: '1px solid #f0f0f0' }}>
@@ -621,7 +836,8 @@ const PropertyPanel: React.FC = () => {
             { key: 'cell', label: '单元格', children: cellPropertiesTab },
             { key: 'style', label: '样式', children: styleTab },
             { key: 'binding', label: '数据绑定', children: dataBindingTab },
-            { key: 'chart', label: '图表配置', children: chartTab }
+            { key: 'chart', label: '图表配置', children: chartTab },
+            { key: 'writeback', label: '回写配置', children: writebackTab }
           ]}
         />
       </div>

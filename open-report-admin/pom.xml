@@ -18,6 +18,10 @@
             <artifactId>open-report-common</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.openreport</groupId>
+            <artifactId>open-report-engine</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>

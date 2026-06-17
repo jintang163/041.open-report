@@ -9,6 +9,8 @@ import ExpressionEditor from './components/ExpressionEditor'
 import ConditionalFormatModal from './components/ConditionalFormatModal'
 import ChartConfigModal from './components/ChartConfigModal'
 import ChartCanvasOverlay from './components/ChartCanvasOverlay'
+import WritebackConfigModal from './components/WritebackConfigModal'
+import { getWritebackConfigList } from '@/api/writeback'
 import { useDesignerStore } from './store/designer'
 import {
   initLuckysheet,
@@ -49,9 +51,11 @@ const DesignerPage: React.FC = () => {
     conditionalFormats,
     charts,
     templateName,
+    templateId,
     expressionEditorVisible,
     expressionEditorInitialValue,
-    setExpressionEditorVisible
+    setExpressionEditorVisible,
+    setWritebackConfigs
   } = useDesignerStore()
 
   const luckysheetContainerRef = useRef<HTMLDivElement>(null)
@@ -253,6 +257,9 @@ const DesignerPage: React.FC = () => {
           const parsed = parseTemplate(template.templateJson)
           setLoadedTemplate(parsed)
         }
+
+        const writebackConfigs = await getWritebackConfigList(Number(id))
+        setWritebackConfigs(writebackConfigs)
       } catch (error) {
         console.error('加载报表模板失败:', error)
         message.error('加载报表模板失败')
@@ -261,7 +268,7 @@ const DesignerPage: React.FC = () => {
       }
     }
     loadTemplate()
-  }, [id, setTemplateId, setTemplateName])
+  }, [id, setTemplateId, setTemplateName, setWritebackConfigs])
 
   useEffect(() => {
     if (loadingTemplate) return
@@ -440,6 +447,7 @@ const DesignerPage: React.FC = () => {
       <ExpressionEditor />
       <ConditionalFormatModal />
       <ChartConfigModal />
+      {templateId && <WritebackConfigModal reportId={templateId} />}
 
       <button
         onClick={handleExportTemplate}
