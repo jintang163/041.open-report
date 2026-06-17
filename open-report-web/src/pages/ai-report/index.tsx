@@ -17,7 +17,8 @@ import {
   Row,
   Col,
   Modal,
-  Steps
+  Steps,
+  Table
 } from 'antd'
 import {
   BulbOutlined,
@@ -27,7 +28,10 @@ import {
   FileTextOutlined,
   CheckCircleOutlined,
   CopyOutlined,
-  EditOutlined
+  EditOutlined,
+  CheckCircleFilled,
+  CloseCircleFilled,
+  LoadingOutlined
 } from '@ant-design/icons'
 import ReactECharts from 'echarts-for-react'
 import {
@@ -38,8 +42,7 @@ import {
   type AiChartSuggestion,
   type GeneratedReportResult
 } from '@/api/ai'
-import { getDatasourceAll } from '@/api/datasource'
-import { getDatasetPreview } from '@/api/dataset'
+import { getDatasourceAll, validateDatasourceSql } from '@/api/datasource'
 import { useNavigate } from 'react-router-dom'
 
 const { Title, Text, Paragraph } = Typography
@@ -160,12 +163,20 @@ const AiReportGenerator = () => {
   const [datasourceList, setDatasourceList] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [validatingSql, setValidatingSql] = useState(false)
   const [aiResult, setAiResult] = useState<AiGenerateResult | null>(null)
   const [aiEnabled, setAiEnabled] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
   const [createLoading, setCreateLoading] = useState(false)
   const [showSql, setShowSql] = useState(false)
   const [previewData, setPreviewData] = useState<Record<string, any>[]>([])
+  const [sqlValidateResult, setSqlValidateResult] = useState<{
+    success: boolean
+    message: string
+    duration?: number
+    columns?: Array<{ name: string; type: string }>
+    sampleData?: Record<string, any>[]
+  } | null>(null)
 
   useEffect(() => {
     loadDatasourceList()
@@ -209,13 +220,34 @@ const AiReportGenerator = () => {
 
     setGenerating(true)
     setAiResult(null)
+    setSqlValidateResult(null)
+    setPreviewData([])
     setCurrentStep(1)
 
     try {
       const result = await generateAiReport({ prompt, dsId })
       setAiResult(result)
       setCurrentStep(2)
-      setPreviewData(mockChartData(result.charts?.[0] || { xField: 'x', yFields: ['y'], chartType: 'bar', title: '' } as any))
+
+      if (result.sql && dsId) {
+        setValidatingSql(true)
+        try {
+          const validation = await validateDatasourceSql(dsId, result.sql)
+          setSqlValidateResult(validation)
+          if (validation.success && validation.sampleData) {
+            setPreviewData(validation.sampleData)
+          } else {
+            setPreviewData(mockChartData(result.charts?.[0] || { xField: 'x', yFields: ['y'], chartType: 'bar', title: '' } as any))
+          }
+        } catch (e: any) {
+          setSqlValidateResult({ success: false, message: e.message || 'SQL校验失败' })
+          setPreviewData(mockChartData(result.charts?.[0] || { xField: 'x', yFields: ['y'], chartType: 'bar', title: '' } as any))
+        } finally {
+          setValidatingSql(false)
+        }
+      } else {
+        setPreviewData(mockChartData(result.charts?.[0] || { xField: 'x', yFields: ['y'], chartType: 'bar', title: '' } as any))
+      }
     } catch (error: any) {
       message.error(error.message || '生成失败')
     } finally {
@@ -226,6 +258,28 @@ const AiReportGenerator = () => {
   const handleCreateReport = async () => {
     if (!aiResult || !dsId) return
 
+    if (sqlValidateResult && !sqlValidateResult.success) {
+      Modal.confirm({
+        title: 'SQL校验未通过',
+        icon: <CloseCircleFilled style={{ color: '#ff4d4f' }} />,
+        content: (
+          <div>
+            <p>SQL执行失败：{sqlValidateResult.message}</p>
+            <p>是否仍然继续生成？（报表可能无法正常展示数据）</p>
+          </div>
+        ),
+        okText: '继续生成',
+        okType: 'danger',
+        cancelText: '取消',
+        onOk: doCreateReport
+      })
+      return
+    }
+    await doCreateReport()
+  }
+
+  const doCreateReport = async () => {
+    if (!aiResult || !dsId) return
     setCreateLoading(true)
     try {
       const result: GeneratedReportResult = await createReportFromResult(aiResult, dsId)
@@ -446,12 +500,33 @@ const AiReportGenerator = () => {
                 {
                   key: 'sql',
                   label: (
-                    <span>
-                      <DatabaseOutlined /> SQL 语句
-                    </span>
+                    <Space>
+                      <DatabaseOutlined />
+                      <span>SQL 语句</span>
+                      {validatingSql ? (
+                        <Tag icon={<LoadingOutlined />} color="processing">校验中</Tag>
+                      ) : sqlValidateResult ? (
+                        sqlValidateResult.success ? (
+                          <Tag icon={<CheckCircleFilled />} color="success">
+                            校验通过 {sqlValidateResult.duration ? `(${sqlValidateResult.duration}ms)` : ''}
+                          </Tag>
+                        ) : (
+                          <Tag icon={<CloseCircleFilled />} color="error">校验失败</Tag>
+                        )
+                      ) : null}
+                    </Space>
                   ),
                   children: (
                     <div>
+                      {sqlValidateResult && !sqlValidateResult.success && (
+                        <Alert
+                          type="error"
+                          showIcon
+                          message="SQL校验失败"
+                          description={sqlValidateResult.message}
+                          style={{ marginBottom: 12 }}
+                        />
+                      )}
                       <pre
                         style={{
                           background: '#f6f8fa',
@@ -459,11 +534,29 @@ const AiReportGenerator = () => {
                           borderRadius: 6,
                           fontSize: 13,
                           lineHeight: 1.6,
-                          overflowX: 'auto'
+                          overflowX: 'auto',
+                          margin: 0
                         }}
                       >
                         {aiResult.sql}
                       </pre>
+                      {sqlValidateResult && sqlValidateResult.success && sqlValidateResult.sampleData && sqlValidateResult.sampleData.length > 0 && (
+                        <div style={{ marginTop: 16 }}>
+                          <Divider orientation="left">数据预览（前 {Math.min(sqlValidateResult.sampleData.length, 5)} 行）</Divider>
+                          <Table
+                            size="small"
+                            dataSource={sqlValidateResult.sampleData.slice(0, 5)}
+                            pagination={false}
+                            bordered
+                            columns={(sqlValidateResult.columns || []).map(col => ({
+                              title: col.name,
+                              dataIndex: col.name,
+                              key: col.name,
+                              render: (v: any) => <span style={{ fontSize: 12 }}>{String(v ?? '')}</span>
+                            }))}
+                          />
+                        </div>
+                      )}
                       {aiResult.description && (
                         <Alert
                           type="info"

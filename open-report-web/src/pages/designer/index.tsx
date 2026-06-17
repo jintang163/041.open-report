@@ -1,5 +1,6 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { message, Spin } from 'antd'
+import { useParams } from 'react-router-dom'
 import Toolbar from './components/Toolbar'
 import FormulaBar from './components/FormulaBar'
 import DataSourcePanel from './components/DataSourcePanel'
@@ -23,17 +24,28 @@ import {
 import {
   extractTemplateFromLuckysheet,
   templateToLuckysheetData,
-  createEmptyTemplate
+  createEmptyTemplate,
+  parseTemplate,
+  type ReportTemplateData
 } from './utils/template'
+import { getReportById } from '@/api/report'
 import type { DataSourceWithDataSets } from './store/designer'
+import type { ChartConfig } from './store/designer'
 
 const DesignerPage: React.FC = () => {
+  const { id } = useParams<{ id?: string }>()
+  const [loadingTemplate, setLoadingTemplate] = useState(false)
+  const [loadedTemplate, setLoadedTemplate] = useState<ReportTemplateData | null>(null)
   const {
     setLuckysheetInstance,
     setSelectedCell,
     setSelectedRange,
     setCellValue,
     setDataSources,
+    setConditionalFormats,
+    setCharts,
+    setTemplateName,
+    setTemplateId,
     conditionalFormats,
     charts,
     templateName,
@@ -122,12 +134,23 @@ const DesignerPage: React.FC = () => {
     if (!window.luckysheet || isInitialized.current) return
 
     try {
-      const emptyTemplate = createEmptyTemplate(templateName)
-      const sheetData = templateToLuckysheetData(emptyTemplate)
+      let templateData: ReportTemplateData
+      if (loadedTemplate) {
+        templateData = loadedTemplate
+        if (templateData.charts) {
+          setCharts(templateData.charts as ChartConfig[])
+        }
+        if (templateData.conditionalFormats) {
+          setConditionalFormats(templateData.conditionalFormats)
+        }
+      } else {
+        templateData = createEmptyTemplate(templateName)
+      }
+      const sheetData = templateToLuckysheetData(templateData)
 
       initLuckysheet('luckysheet-container', {
         data: sheetData,
-        title: templateName,
+        title: templateData.name || templateName,
         hook: {
           cellMousedown: () => {},
           cellMouseup: () => {
@@ -152,12 +175,12 @@ const DesignerPage: React.FC = () => {
 
       setLuckysheetInstance(window.luckysheet)
       isInitialized.current = true
-      message.success('报表设计器初始化成功')
+      message.success(loadedTemplate ? '报表模板加载成功' : '报表设计器初始化成功')
     } catch (error) {
       console.error('Luckysheet initialization error:', error)
-      message.error('报表设计器初始化失败')
+      message.error(loadedTemplate ? '报表模板加载失败' : '报表设计器初始化失败')
     }
-  }, [templateName, setLuckysheetInstance, setCellValue])
+  }, [templateName, loadedTemplate, setLuckysheetInstance, setCellValue, setCharts, setConditionalFormats])
 
   const updateSelection = useCallback(() => {
     const cell = getSelectedCell()
@@ -218,6 +241,32 @@ const DesignerPage: React.FC = () => {
   }, [setDataSources])
 
   useEffect(() => {
+    if (!id) return
+    const loadTemplate = async () => {
+      setLoadingTemplate(true)
+      try {
+        const template = await getReportById(Number(id))
+        setTemplateId(template.id!)
+        setTemplateName(template.templateName)
+
+        if (template.templateJson) {
+          const parsed = parseTemplate(template.templateJson)
+          setLoadedTemplate(parsed)
+        }
+      } catch (error) {
+        console.error('加载报表模板失败:', error)
+        message.error('加载报表模板失败')
+      } finally {
+        setLoadingTemplate(false)
+      }
+    }
+    loadTemplate()
+  }, [id, setTemplateId, setTemplateName])
+
+  useEffect(() => {
+    if (loadingTemplate) return
+    if (id && loadedTemplate === null) return
+
     const checkLuckysheet = () => {
       if (window.luckysheet) {
         handleLuckysheetReady()
@@ -287,7 +336,7 @@ const DesignerPage: React.FC = () => {
         isInitialized.current = false
       }
     }
-  }, [handleLuckysheetReady])
+  }, [handleLuckysheetReady, loadingTemplate, id, loadedTemplate])
 
   const handleExportTemplate = () => {
     if (!window.luckysheet) {

@@ -9,6 +9,7 @@ import com.openreport.admin.entity.DataSet;
 import com.openreport.admin.entity.ReportTemplate;
 import com.openreport.admin.service.AiService;
 import com.openreport.admin.service.DataSetService;
+import com.openreport.admin.service.DataSourceConfigService;
 import com.openreport.admin.service.ReportGeneratorService;
 import com.openreport.admin.service.ReportTemplateService;
 import lombok.extern.slf4j.Slf4j;
@@ -32,12 +33,27 @@ public class ReportGeneratorServiceImpl implements ReportGeneratorService {
     @Autowired
     private ReportTemplateService reportTemplateService;
 
+    @Autowired
+    private DataSourceConfigService dataSourceConfigService;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public GeneratedReportResult generateReport(AiGenerateResult aiResult, Long dsId, Long userId) {
         GeneratedReportResult result = new GeneratedReportResult();
 
         try {
+            if (aiResult.getSql() == null || aiResult.getSql().trim().isEmpty()) {
+                result.setMessage("SQL不能为空");
+                throw new IllegalArgumentException("SQL不能为空");
+            }
+
+            Map<String, Object> validateResult = dataSourceConfigService.validateSql(dsId, aiResult.getSql());
+            if (validateResult != null && Boolean.FALSE.equals(validateResult.get("success"))) {
+                String errorMsg = String.valueOf(validateResult.getOrDefault("message", "SQL校验失败"));
+                result.setMessage("SQL校验失败: " + errorMsg);
+                throw new IllegalArgumentException("SQL校验失败: " + errorMsg);
+            }
+
             String reportTitle = aiResult.getReportTitle() != null ? aiResult.getReportTitle() : "AI生成报表";
             String datasetName = reportTitle + "_数据集";
 

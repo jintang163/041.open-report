@@ -16,4 +16,12 @@ public interface DataSourceConfigService extends IService<DataSourceConfig> {
     boolean testConnection(DataSourceConfig config);
 
     Map<String, Object> getConnectionInfo(Long id);
+
+    List<Map<String, Object>> getTables(Long dsId);
+
+    List<Map<String, Object>> getTableColumns(Long dsId, String tableName);
+
+    String generateSchemaInfo(Long dsId);
+
+    Map<String, Object> validateSql(Long dsId, String sql);
 }

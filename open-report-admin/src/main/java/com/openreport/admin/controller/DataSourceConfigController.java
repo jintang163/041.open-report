@@ -106,4 +106,33 @@ public class DataSourceConfigController {
     public Result<Map<String, Object>> getConnectionInfo(@PathVariable Long id) {
         return Result.success(dataSourceConfigService.getConnectionInfo(id));
     }
+
+    @ApiOperation("获取数据源表列表")
+    @GetMapping("/{id}/tables")
+    public Result<List<Map<String, Object>>> getTables(@PathVariable Long id) {
+        return Result.success(dataSourceConfigService.getTables(id));
+    }
+
+    @ApiOperation("获取表字段信息")
+    @GetMapping("/{id}/columns/{tableName}")
+    public Result<List<Map<String, Object>>> getTableColumns(
+            @PathVariable Long id,
+            @PathVariable String tableName) {
+        return Result.success(dataSourceConfigService.getTableColumns(id, tableName));
+    }
+
+    @ApiOperation("生成数据源Schema信息（提供给大模型）")
+    @GetMapping("/{id}/schema")
+    public Result<String> generateSchemaInfo(@PathVariable Long id) {
+        return Result.success(dataSourceConfigService.generateSchemaInfo(id));
+    }
+
+    @ApiOperation("校验SQL是否可执行")
+    @PostMapping("/{id}/validate-sql")
+    public Result<Map<String, Object>> validateSql(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        String sql = body.get("sql");
+        return Result.success(dataSourceConfigService.validateSql(id, sql));
+    }
 }

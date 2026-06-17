@@ -32,3 +32,35 @@ export const batchDeleteDatasource = (ids: number[]): Promise<void> => {
 export const testConnection = (data: DataSourceConfig): Promise<{ success: boolean; message: string }> => {
   return post('/datasource/test-connection', data)
 }
+
+export const getDatasourceTables = (id: number): Promise<Array<{
+  tableName: string
+  tableType: string
+  remarks?: string
+}>> => {
+  return get(`/datasource/${id}/tables`)
+}
+
+export const getTableColumns = (id: number, tableName: string): Promise<Array<{
+  columnName: string
+  dataType: string
+  columnSize?: number
+  nullable?: boolean
+  remarks?: string
+}>> => {
+  return get(`/datasource/${id}/columns/${tableName}`)
+}
+
+export const getDatasourceSchema = (id: number): Promise<string> => {
+  return get(`/datasource/${id}/schema`)
+}
+
+export const validateDatasourceSql = (id: number, sql: string): Promise<{
+  success: boolean
+  message: string
+  duration?: number
+  columns?: Array<{ name: string; type: string }>
+  sampleData?: Record<string, any>[]
+}> => {
+  return post(`/datasource/${id}/validate-sql`, { sql })
+}

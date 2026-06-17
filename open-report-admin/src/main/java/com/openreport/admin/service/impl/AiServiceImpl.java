@@ -151,6 +151,15 @@ public class AiServiceImpl implements AiService {
 
         if (request.getSchemaInfo() != null && !request.getSchemaInfo().isEmpty()) {
             sb.append("可用表结构：\n").append(request.getSchemaInfo()).append("\n");
+        } else if (request.getDsId() != null) {
+            try {
+                String schemaInfo = dataSourceConfigService.generateSchemaInfo(request.getDsId());
+                if (schemaInfo != null && !schemaInfo.isEmpty()) {
+                    sb.append("可用表结构：\n").append(schemaInfo).append("\n");
+                }
+            } catch (Exception e) {
+                log.warn("获取数据源schema信息失败: {}", e.getMessage());
+            }
         }
 
         if (request.getTableNames() != null && !request.getTableNames().isEmpty()) {

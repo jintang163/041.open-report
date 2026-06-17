@@ -76,12 +76,14 @@ export interface DataSet {
 
 export interface ReportTemplate {
   id?: number
-  name: string
-  code?: string
-  type?: number
-  template?: string
+  templateName: string
+  templateCode?: string
+  templateType?: number
+  templateJson?: string
+  dataSetBind?: string
+  paramConfig?: string
+  description?: string
   status?: number
-  remark?: string
   createTime?: string
   updateTime?: string
   createBy?: string

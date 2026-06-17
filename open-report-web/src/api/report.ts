@@ -2,27 +2,27 @@ import { get, post, put, del } from '@/utils/request'
 import { ReportTemplate, PageParams, PageResult } from '@/types'
 
 export const getReportList = (params: PageParams): Promise<PageResult<ReportTemplate>> => {
-  return get('/report/list', params)
+  return get('/report-template/page', params)
 }
 
 export const getReportAll = (): Promise<ReportTemplate[]> => {
-  return get('/report/all')
+  return get('/report-template/list')
 }
 
 export const getReportById = (id: number): Promise<ReportTemplate> => {
-  return get(`/report/${id}`)
+  return get(`/report-template/${id}`)
 }
 
-export const createReport = (data: ReportTemplate): Promise<ReportTemplate> => {
-  return post('/report', data)
+export const createReport = (data: Partial<ReportTemplate>): Promise<ReportTemplate> => {
+  return post('/report-template', data)
 }
 
-export const updateReport = (data: ReportTemplate): Promise<ReportTemplate> => {
-  return put('/report', data)
+export const updateReport = (data: Partial<ReportTemplate>): Promise<ReportTemplate> => {
+  return put('/report-template', data)
 }
 
 export const deleteReport = (id: number): Promise<void> => {
-  return del(`/report/${id}`)
+  return del(`/report-template/${id}`)
 }
 
 export const batchDeleteReport = (ids: number[]): Promise<void> => {
