@@ -14,7 +14,8 @@ import {
   MenuUnfoldOutlined,
   SafetyCertificateOutlined,
   ScheduleOutlined,
-  LinkOutlined
+  LinkOutlined,
+  FundScreenOutlined
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useUserStore } from '@/store/user'
@@ -31,7 +32,8 @@ const iconMap: Record<string, any> = {
   MenuOutlined: <MenuOutlined />,
   SafetyCertificateOutlined: <SafetyCertificateOutlined />,
   ScheduleOutlined: <ScheduleOutlined />,
-  LinkOutlined: <LinkOutlined />
+  LinkOutlined: <LinkOutlined />,
+  FundScreenOutlined: <FundScreenOutlined />
 }
 
 const menuItems = [
@@ -59,6 +61,11 @@ const menuItems = [
     key: '/schedule',
     icon: iconMap['ScheduleOutlined'],
     label: '调度管理'
+  },
+  {
+    key: '/screen',
+    icon: iconMap['FundScreenOutlined'],
+    label: '可视化大屏'
   },
   {
     key: '/embed/demo',
@@ -144,12 +151,13 @@ const BasicLayout = () => {
       dataset: '数据集管理',
       report: '报表管理',
       schedule: '调度管理',
+      screen: '可视化大屏',
+      designer: '设计器',
+      viewer: '预览',
       system: '系统管理',
       user: '用户管理',
       role: '角色管理',
       menu: '菜单管理',
-      designer: '报表设计器',
-      viewer: '报表查看',
       embed: '嵌入式集成',
       demo: '集成示例'
     }

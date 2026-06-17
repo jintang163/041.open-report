@@ -156,3 +156,46 @@ export type DataSourceType =
   | 'DM'
   | 'API'
   | 'EXCEL'
+
+export interface ChartDashboard {
+  id?: number
+  name: string
+  code?: string
+  description?: string
+  canvasWidth?: number
+  canvasHeight?: number
+  backgroundColor?: string
+  refreshInterval?: number
+  status?: number
+  createTime?: string
+  updateTime?: string
+  createBy?: number
+  updateBy?: number
+}
+
+export type ChartType = 'bar' | 'line' | 'pie' | 'radar' | 'scatter'
+
+export interface ChartDashboardItem {
+  id?: number
+  dashboardId?: number
+  title?: string
+  chartType: ChartType
+  datasetId?: number
+  xField?: string
+  yFields?: string[]
+  linkageField?: string
+  linkageTargetId?: number
+  positionX: number
+  positionY: number
+  width: number
+  height: number
+  chartConfig?: Record<string, any>
+  sortOrder?: number
+  createTime?: string
+  updateTime?: string
+}
+
+export interface DashboardDetail {
+  dashboard: ChartDashboard
+  items: ChartDashboardItem[]
+}

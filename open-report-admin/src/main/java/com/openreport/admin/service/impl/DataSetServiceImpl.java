@@ -121,6 +121,17 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
     }
 
     @Override
+    public List<Map<String, Object>> previewDataList(Long dataSetId, Map<String, Object> params) {
+        Map<String, Object> result = previewData(dataSetId, params, 10000);
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> rows = (List<Map<String, Object>>) result.get("rows");
+            return rows != null ? rows : Collections.emptyList();
+        }
+        return Collections.emptyList();
+    }
+
+    @Override
     public Map<String, Object> parseSql(String sqlText) {
         Map<String, Object> result = new HashMap<>();
         List<Map<String, Object>> params = parseParamsFromSql(sqlText);

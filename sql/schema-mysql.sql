@@ -217,4 +217,54 @@ CREATE TABLE `report_log` (
   KEY `idx_report_id` (`report_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='报表执行日志表';
 
+-- ----------------------------
+-- 可视化大屏表
+-- ----------------------------
+DROP TABLE IF EXISTS `chart_dashboard`;
+CREATE TABLE `chart_dashboard` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `name` varchar(128) NOT NULL COMMENT '大屏名称',
+  `code` varchar(64) NOT NULL COMMENT '大屏编码',
+  `description` varchar(512) DEFAULT NULL COMMENT '描述',
+  `canvas_width` int NOT NULL DEFAULT 1920 COMMENT '画布宽度',
+  `canvas_height` int NOT NULL DEFAULT 1080 COMMENT '画布高度',
+  `background_color` varchar(32) DEFAULT '#0d1b2a' COMMENT '背景色',
+  `refresh_interval` int DEFAULT 0 COMMENT '自动刷新间隔(秒) 0-不刷新',
+  `status` tinyint NOT NULL DEFAULT 1 COMMENT '状态 0-禁用 1-启用',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `create_by` bigint DEFAULT NULL COMMENT '创建人',
+  `update_by` bigint DEFAULT NULL COMMENT '更新人',
+  `deleted` tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除 0-未删除 1-已删除',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_code` (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='可视化大屏表';
+
+-- ----------------------------
+-- 大屏图表组件表
+-- ----------------------------
+DROP TABLE IF EXISTS `chart_dashboard_item`;
+CREATE TABLE `chart_dashboard_item` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `dashboard_id` bigint NOT NULL COMMENT '大屏ID',
+  `title` varchar(128) DEFAULT NULL COMMENT '图表标题',
+  `chart_type` varchar(32) NOT NULL COMMENT '图表类型 bar/line/pie/radar/scatter',
+  `dataset_id` bigint DEFAULT NULL COMMENT '数据集ID',
+  `x_field` varchar(128) DEFAULT NULL COMMENT '分类轴字段',
+  `y_fields` json DEFAULT NULL COMMENT '数值轴字段(JSON数组)',
+  `linkage_field` varchar(128) DEFAULT NULL COMMENT '联动字段',
+  `linkage_target_id` bigint DEFAULT NULL COMMENT '联动目标组件ID',
+  `position_x` int NOT NULL DEFAULT 0 COMMENT 'X坐标',
+  `position_y` int NOT NULL DEFAULT 0 COMMENT 'Y坐标',
+  `width` int NOT NULL DEFAULT 400 COMMENT '宽度',
+  `height` int NOT NULL DEFAULT 300 COMMENT '高度',
+  `chart_config` json DEFAULT NULL COMMENT '图表扩展配置(JSON)',
+  `sort_order` int NOT NULL DEFAULT 0 COMMENT '排序',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除 0-未删除 1-已删除',
+  PRIMARY KEY (`id`),
+  KEY `idx_dashboard_id` (`dashboard_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='大屏图表组件表';
+
 SET FOREIGN_KEY_CHECKS = 1;

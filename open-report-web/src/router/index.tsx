@@ -3,6 +3,9 @@ import BasicLayout from '@/layouts/BasicLayout'
 import Login from '@/pages/login'
 import Dashboard from '@/pages/dashboard'
 import Designer from '@/pages/designer'
+import DashboardList from '@/pages/dashboard-list'
+import DashboardDesigner from '@/pages/dashboard-designer'
+import DashboardViewer from '@/pages/dashboard-viewer'
 import UserManagement from '@/pages/system/user'
 import RoleManagement from '@/pages/system/role'
 import MenuManagement from '@/pages/system/menu'
@@ -88,6 +91,21 @@ const routes = [
             path: 'schedule',
             element: withLoading(ScheduleManagement)(),
             meta: { title: '调度管理', icon: 'ScheduleOutlined' }
+          },
+          {
+            path: 'screen',
+            element: withLoading(DashboardList)(),
+            meta: { title: '可视化大屏', icon: 'DashboardOutlined' }
+          },
+          {
+            path: 'dashboard/designer/:id?',
+            element: <DashboardDesigner />,
+            meta: { title: '大屏设计器', icon: 'EditOutlined', hideInMenu: true }
+          },
+          {
+            path: 'dashboard/viewer/:id',
+            element: <DashboardViewer />,
+            meta: { title: '大屏预览', icon: 'EyeOutlined', hideInMenu: true }
           },
           {
             path: 'system/user',
