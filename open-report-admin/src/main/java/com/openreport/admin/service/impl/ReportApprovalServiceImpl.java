@@ -33,6 +33,9 @@ public class ReportApprovalServiceImpl extends ServiceImpl<ReportApprovalMapper,
     @Autowired
     private ReportTemplateSnapshotMapper snapshotMapper;
 
+    @Autowired
+    private com.openreport.admin.websocket.WebSocketPushService pushService;
+
     @Override
     public List<ReportApproval> listByTemplateId(Long templateId) {
         return baseMapper.listByTemplateId(templateId);
@@ -75,6 +78,9 @@ public class ReportApprovalServiceImpl extends ServiceImpl<ReportApprovalMapper,
         template.setUpdateBy(userId);
         template.setUpdateTime(LocalDateTime.now());
         reportTemplateMapper.updateById(template);
+
+        pushService.pushTemplateChange(template, "SUBMIT_APPROVAL");
+        pushService.pushApprovalChange(approval, template);
 
         return approval;
     }
@@ -127,6 +133,9 @@ public class ReportApprovalServiceImpl extends ServiceImpl<ReportApprovalMapper,
         template.setUpdateTime(LocalDateTime.now());
         reportTemplateMapper.updateById(template);
 
+        pushService.pushTemplateChange(template, pass ? "APPROVAL_PASS" : "APPROVAL_REJECT");
+        pushService.pushApprovalChange(approval, template);
+
         return approval;
     }
 
@@ -155,7 +164,10 @@ public class ReportApprovalServiceImpl extends ServiceImpl<ReportApprovalMapper,
             template.setUpdateBy(userId);
             template.setUpdateTime(LocalDateTime.now());
             reportTemplateMapper.updateById(template);
+
+            pushService.pushTemplateChange(template, "CANCEL_APPROVAL");
         }
+        pushService.pushApprovalChange(approval, template);
 
         return approval;
     }

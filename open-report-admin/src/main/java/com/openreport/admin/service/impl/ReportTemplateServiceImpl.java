@@ -23,6 +23,9 @@ public class ReportTemplateServiceImpl extends ServiceImpl<ReportTemplateMapper,
     @Autowired
     private ReportTemplateSnapshotService snapshotService;
 
+    @Autowired
+    private com.openreport.admin.websocket.WebSocketPushService pushService;
+
     @Override
     public Page<ReportTemplate> pageList(Integer pageNum, Integer pageSize, String templateName, Integer templateType) {
         Page<ReportTemplate> page = new Page<>(pageNum, pageSize);
@@ -86,6 +89,7 @@ public class ReportTemplateServiceImpl extends ServiceImpl<ReportTemplateMapper,
         baseMapper.insert(newTemplate);
 
         snapshotService.createSnapshot(newTemplate.getId(), userId, userName, "模板复制创建");
+        pushService.pushTemplateChange(newTemplate, "COPY");
 
         return newTemplate;
     }
@@ -96,7 +100,8 @@ public class ReportTemplateServiceImpl extends ServiceImpl<ReportTemplateMapper,
         template.setUpdateBy(userId);
         template.setUpdateTime(LocalDateTime.now());
 
-        if (template.getId() == null) {
+        boolean isNew = template.getId() == null;
+        if (isNew) {
             template.setCreateBy(userId);
             template.setCreateTime(LocalDateTime.now());
             template.setDeleted(0);
@@ -119,6 +124,8 @@ public class ReportTemplateServiceImpl extends ServiceImpl<ReportTemplateMapper,
             baseMapper.updateById(template);
             snapshotService.createSnapshot(template.getId(), userId, userName, "更新草稿");
         }
+
+        pushService.pushTemplateChange(template, isNew ? "INSERT" : "UPDATE");
 
         return template;
     }

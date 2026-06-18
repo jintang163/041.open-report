@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Card,
   Table,
@@ -12,14 +12,16 @@ import {
   message,
   Row,
   Col,
-  Pagination
+  Pagination,
+  Alert
 } from 'antd'
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   EyeOutlined,
   SearchOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  SyncOutlined
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { ReportApproval } from '@/types'
@@ -30,6 +32,7 @@ import {
   getReportById,
   getVersionDetail
 } from '@/api/report'
+import { useWebSocket } from '@/hooks/useWebSocket'
 
 const ApprovalManagement = () => {
   const [loading, setLoading] = useState(false)
@@ -45,6 +48,27 @@ const ApprovalManagement = () => {
   const [actionType, setActionType] = useState<'approve' | 'reject'>('approve')
   const [actionRemark, setActionRemark] = useState('')
   const [previewJson, setPreviewJson] = useState<string>('')
+  const [shouldRefresh, setShouldRefresh] = useState(false)
+  const [lastMessage, setLastMessage] = useState<any>(null)
+  const refreshLockRef = useRef(false)
+
+  const { isConnected, subscribe } = useWebSocket()
+
+  useEffect(() => {
+    const unsub = subscribe('APPROVAL:LIST', (msg) => {
+      setLastMessage(msg)
+      setShouldRefresh(true)
+      if (!refreshLockRef.current) {
+        refreshLockRef.current = true
+        setTimeout(() => {
+          fetchData().finally(() => {
+            refreshLockRef.current = false
+          })
+        }, 300)
+      }
+    })
+    return unsub
+  }, [subscribe])
 
   const fetchData = async () => {
     setLoading(true)
@@ -268,8 +292,63 @@ const ApprovalManagement = () => {
         </Row>
       </Card>
 
-      <Card size="small" title="审批列表">
-        <Table
+      <Card
+        size="small"
+        title={
+          <Space>
+            <span>审批列表</span>
+            <Tag color={isConnected ? 'green' : 'default'}>
+              {isConnected ? '● 实时同步' : '○ 离线'}
+            </Tag>
+            {shouldRefresh && (
+              <Tag color="orange">
+                <SyncOutlined spin /> 有新数据
+              </Tag>
+            )}
+          </Space>
+        }
+        extra={
+          <Button
+            icon={<ReloadOutlined spin={shouldRefresh} />}
+            onClick={() => {
+              setShouldRefresh(false)
+              fetchData()
+            }}
+            type={shouldRefresh ? 'primary' : 'default'}
+          >
+            {shouldRefresh ? '立即刷新' : '刷新'}
+          </Button>
+        }
+      >
+        {shouldRefresh && (
+          <Alert
+            message="检测到审批数据变更"
+            description={
+              lastMessage
+                ? `变更类型: ${lastMessage.type}${
+                    lastMessage.payload?.templateName ? ' - ' + lastMessage.payload.templateName : ''
+                  }`
+                : ''
+            }
+            type="info"
+            showIcon
+            closable
+            onClose={() => setShouldRefresh(false)}
+            style={{ marginBottom: 16 }}
+            action={
+              <Button
+                size="small"
+                type="primary"
+                onClick={() => {
+                  setShouldRefresh(false)
+                  fetchData()
+                }}
+              >
+                立即刷新
+              </Button>
+            }
+          />
+        )}<Table
           rowKey="id"
           loading={loading}
           columns={columns}

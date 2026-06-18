@@ -1,0 +1,22 @@
+package com.openreport.common.websocket;
+
+public interface WebSocketMessageType {
+
+    String HEARTBEAT = "HEARTBEAT";
+
+    String HEARTBEAT_ACK = "HEARTBEAT_ACK";
+
+    String SUBSCRIBE = "SUBSCRIBE";
+
+    String UNSUBSCRIBE = "UNSUBSCRIBE";
+
+    String REPORT_TEMPLATE_CHANGED = "REPORT_TEMPLATE_CHANGED";
+
+    String REPORT_DATA_CHANGED = "REPORT_DATA_CHANGED";
+
+    String REPORT_APPROVAL_CHANGED = "REPORT_APPROVAL_CHANGED";
+
+    String REPORT_VERSION_CHANGED = "REPORT_VERSION_CHANGED";
+
+    String SCHEDULE_TASK_FINISHED = "SCHEDULE_TASK_FINISHED";
+}

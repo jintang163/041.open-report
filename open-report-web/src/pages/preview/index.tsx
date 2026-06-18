@@ -1,7 +1,23 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Spin, Typography, Divider, Result, Button, Tabs, Space } from 'antd'
-import { ArrowLeftOutlined, EditOutlined, HistoryOutlined } from '@ant-design/icons'
+import {
+  Spin,
+  Typography,
+  Divider,
+  Result,
+  Button,
+  Tabs,
+  Space,
+  Alert,
+  Tag,
+  message
+} from 'antd'
+import {
+  ArrowLeftOutlined,
+  EditOutlined,
+  HistoryOutlined,
+  SyncOutlined
+} from '@ant-design/icons'
 import ParamPanel from './components/ParamPanel'
 import ReportTable from './components/ReportTable'
 import ReportChart from './components/ReportChart'
@@ -14,6 +30,7 @@ import { useWritebackStore } from './store/writeback'
 import { getReportById } from '@/api/report'
 import { ReportTemplate } from '@/types'
 import { isMobileDevice } from './utils/report'
+import { useReportWebSocket } from '@/hooks/useWebSocket'
 
 const { Title } = Typography
 
@@ -26,6 +43,7 @@ const PreviewPage: React.FC = () => {
   const [initLoading, setInitLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('view')
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(true)
 
   const setReportId = usePreviewStore((state) => state.setReportId)
   const setReportName = usePreviewStore((state) => state.setReportName)
@@ -44,6 +62,35 @@ const PreviewPage: React.FC = () => {
     setHistoryVisible,
     reset: resetWriteback
   } = useWritebackStore()
+
+  const refreshLockRef = useRef(false)
+
+  const { isConnected, shouldRefresh, acknowledgeRefresh, lastMessage } = useReportWebSocket(
+    id,
+    () => {
+      if (autoRefresh && !refreshLockRef.current) {
+        refreshLockRef.current = true
+        message.info('检测到数据变更，正在自动刷新...')
+        setTimeout(() => {
+          executeReport().finally(() => {
+            refreshLockRef.current = false
+            acknowledgeRefresh()
+          })
+        }, 300)
+      }
+    }
+  )
+
+  const handleManualRefresh = async () => {
+    message.loading({ content: '正在刷新数据...', key: 'refresh', duration: 0 })
+    try {
+      await executeReport()
+      acknowledgeRefresh()
+      message.success({ content: '刷新成功', key: 'refresh' })
+    } catch {
+      message.error({ content: '刷新失败', key: 'refresh' })
+    }
+  }
 
   useEffect(() => {
     toggleMobile(isMobileDevice())
@@ -150,6 +197,23 @@ const PreviewPage: React.FC = () => {
               {reportInfo?.name || '报表预览'}
             </Title>
             <Space>
+              <Tag color={isConnected ? 'green' : 'default'}>
+                {isConnected ? '● 实时连接' : '○ 离线'}
+              </Tag>
+              <Switch
+                size="small"
+                checked={autoRefresh}
+                onChange={setAutoRefresh}
+                checkedChildren="自动刷新"
+                unCheckedChildren="自动刷新"
+              />
+              <Button
+                icon={<SyncOutlined spin={shouldRefresh} />}
+                onClick={handleManualRefresh}
+                type={shouldRefresh ? 'primary' : 'default'}
+              >
+                {shouldRefresh ? '有新数据' : '刷新'}
+              </Button>
               {writebackConfigs.length > 0 && (
                 <>
                   <Tabs
@@ -188,6 +252,34 @@ const PreviewPage: React.FC = () => {
               )}
             </Space>
           </div>
+        )}
+
+        {shouldRefresh && !autoRefresh && (
+          <Alert
+            message="检测到报表有新数据变更"
+            description={
+              lastMessage
+                ? `变更类型: ${lastMessage.type}${
+                    lastMessage.payload?.changeType ? ' (' + lastMessage.payload.changeType + ')' : ''
+                  }`
+                : ''
+            }
+            type="info"
+            showIcon
+            action={
+              <Space>
+                <Button size="small" type="primary" onClick={handleManualRefresh}>
+                  立即刷新
+                </Button>
+                <Button size="small" onClick={acknowledgeRefresh}>
+                  忽略
+                </Button>
+              </Space>
+            }
+            style={{ marginBottom: 16 }}
+            closable
+            onClose={acknowledgeRefresh}
+          />
         )}
 
         <ParamPanel collapsible={!isMobile} />

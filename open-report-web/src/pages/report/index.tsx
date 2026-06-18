@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Table,
@@ -18,7 +18,8 @@ import {
   Upload,
   Switch,
   Descriptions,
-  InputNumber
+  InputNumber,
+  Alert
 } from 'antd'
 import {
   PlusOutlined,
@@ -37,7 +38,8 @@ import {
   HistoryOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  UndoOutlined
+  UndoOutlined,
+  SyncOutlined
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { ReportTemplate, PageParams, ReportApproval } from '@/types'
@@ -55,6 +57,7 @@ import {
   getApprovalByTemplateId
 } from '@/api/report'
 import VersionManagement from '@/components/VersionManagement'
+import { useReportWebSocket } from '@/hooks/useWebSocket'
 
 interface Report extends ReportTemplate {
   id: number
@@ -86,6 +89,22 @@ const ReportManagement = () => {
   const [previewReport, setPreviewReport] = useState<Report | null>(null)
   const [currentReport, setCurrentReport] = useState<Report | null>(null)
   const [approvalHistory, setApprovalHistory] = useState<ReportApproval[]>([])
+  const refreshLockRef = useRef(false)
+
+  const { isConnected, shouldRefresh, acknowledgeRefresh, lastMessage } = useReportWebSocket(
+    undefined,
+    () => {
+      if (!refreshLockRef.current) {
+        refreshLockRef.current = true
+        setTimeout(() => {
+          fetchData().finally(() => {
+            refreshLockRef.current = false
+            acknowledgeRefresh()
+          })
+        }, 300)
+      }
+    }
+  )
 
   const fetchData = async () => {
     setLoading(true)
@@ -567,9 +586,31 @@ const ReportManagement = () => {
 
       <Card
         size="small"
-        title="报表列表"
+        title={
+          <Space>
+            <span>报表列表</span>
+            <Tag color={isConnected ? 'green' : 'default'}>
+              {isConnected ? '● 实时同步' : '○ 离线'}
+            </Tag>
+            {shouldRefresh && (
+              <Tag color="orange">
+                <SyncOutlined spin /> 有新数据
+              </Tag>
+            )}
+          </Space>
+        }
         extra={
           <Space>
+            <Button
+              icon={<ReloadOutlined spin={shouldRefresh} />}
+              onClick={() => {
+                acknowledgeRefresh()
+                fetchData()
+              }}
+              type={shouldRefresh ? 'primary' : 'default'}
+            >
+              {shouldRefresh ? '立即刷新' : '刷新'}
+            </Button>
             <Upload
               showUploadList={false}
               beforeUpload={() => {
@@ -591,6 +632,30 @@ const ReportManagement = () => {
           </Space>
         }
       >
+        {shouldRefresh && (
+          <Alert
+            message="检测到报表数据变更"
+            description={
+              lastMessage
+                ? `变更类型: ${lastMessage.type}${
+                    lastMessage.payload?.changeType ? ' (' + lastMessage.payload.changeType + ')' : ''
+                  }${
+                    lastMessage.payload?.templateName ? ' - ' + lastMessage.payload.templateName : ''
+                  }`
+                : ''
+            }
+            type="info"
+            showIcon
+            closable
+            onClose={acknowledgeRefresh}
+            style={{ marginBottom: 16 }}
+            action={
+              <Button size="small" type="primary" onClick={() => { acknowledgeRefresh(); fetchData() }}>
+                立即刷新
+              </Button>
+            }
+          />
+        )}
         <Table
           rowKey="id"
           loading={loading}
