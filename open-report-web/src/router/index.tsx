@@ -18,6 +18,7 @@ import DatasetManagement from '@/pages/dataset'
 import ReportManagement from '@/pages/report'
 import ApprovalManagement from '@/pages/approval'
 import ScheduleManagement from '@/pages/schedule'
+import SubscriptionManagement from '@/pages/subscription'
 import EmbedDemo from '@/pages/embed/demo'
 import PrintPage from '@/pages/print'
 import PreviewPage from '@/pages/preview'
@@ -117,6 +118,11 @@ const routes = [
             path: 'schedule',
             element: withLoading(ScheduleManagement)(),
             meta: { title: '调度管理', icon: 'ScheduleOutlined' }
+          },
+          {
+            path: 'subscription',
+            element: withLoading(SubscriptionManagement)(),
+            meta: { title: '订阅通知', icon: 'BellOutlined' }
           },
           {
             path: 'screen',

@@ -14,6 +14,7 @@ import {
   MenuUnfoldOutlined,
   SafetyCertificateOutlined,
   ScheduleOutlined,
+  BellOutlined,
   LinkOutlined,
   FundScreenOutlined,
   ThunderboltOutlined,
@@ -36,6 +37,7 @@ const iconMap: Record<string, any> = {
   MenuOutlined: <MenuOutlined />,
   SafetyCertificateOutlined: <SafetyCertificateOutlined />,
   ScheduleOutlined: <ScheduleOutlined />,
+  BellOutlined: <BellOutlined />,
   LinkOutlined: <LinkOutlined />,
   FundScreenOutlined: <FundScreenOutlined />,
   ThunderboltOutlined: <ThunderboltOutlined />,
@@ -52,6 +54,7 @@ const staticMenuConfig: Record<string, { icon: string; label: string }> = {
   '/pivot-designer': { icon: 'FundScreenOutlined', label: '交叉报表' },
   '/report': { icon: 'FileTextOutlined', label: '报表管理' },
   '/schedule': { icon: 'ScheduleOutlined', label: '调度管理' },
+  '/subscription': { icon: 'BellOutlined', label: '订阅通知' },
   '/screen': { icon: 'FundScreenOutlined', label: '可视化大屏' },
   '/embed/demo': { icon: 'LinkOutlined', label: '嵌入式集成' },
   '/system/user': { icon: 'UserOutlined', label: '用户管理' },
@@ -87,7 +90,7 @@ function buildMenuItemsFromPermissions(menus: MenuItem[], permissions: string[])
 function buildMenuFromPaths(paths: Set<string>) {
   const items: any[] = []
 
-  const topLevelPaths = ['/dashboard', '/datasource', '/dataset', '/ai-report', '/pivot-designer', '/report', '/schedule', '/screen', '/embed/demo']
+  const topLevelPaths = ['/dashboard', '/datasource', '/dataset', '/ai-report', '/pivot-designer', '/report', '/schedule', '/subscription', '/screen', '/embed/demo']
   for (const path of topLevelPaths) {
     if (paths.has(path) && staticMenuConfig[path]) {
       const config = staticMenuConfig[path]
@@ -132,6 +135,7 @@ function buildFullMenu() {
     { key: '/pivot-designer', icon: iconMap['FundScreenOutlined'], label: '交叉报表' },
     { key: '/report', icon: iconMap['FileTextOutlined'], label: '报表管理' },
     { key: '/schedule', icon: iconMap['ScheduleOutlined'], label: '调度管理' },
+    { key: '/subscription', icon: iconMap['BellOutlined'], label: '订阅通知' },
     { key: '/screen', icon: iconMap['FundScreenOutlined'], label: '可视化大屏' },
     { key: '/embed/demo', icon: iconMap['LinkOutlined'], label: '嵌入式集成' },
     {
@@ -210,6 +214,7 @@ const BasicLayout = () => {
       'pivot-designer': '交叉报表',
       report: '报表管理',
       schedule: '调度管理',
+      subscription: '订阅通知',
       screen: '可视化大屏',
       designer: '设计器',
       viewer: '预览',

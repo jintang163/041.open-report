@@ -92,3 +92,11 @@ report:
     senderName: Open Report
   retry:
     max-delay-minutes: 60
+  subscription:
+    push:
+      enabled: true
+      cron: "0 */5 * * * ?"
+    dingtalk:
+      timeout: 10000
+    wecom:
+      timeout: 10000

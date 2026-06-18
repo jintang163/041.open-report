@@ -249,6 +249,57 @@ export interface ReportSchedule {
   updateTime?: string
 }
 
+export type SubscribeChannel = 'DINGTALK' | 'WECOM' | 'EMAIL'
+export type PushFrequency = 'DAILY' | 'WEEKLY' | 'MONTHLY'
+export type MessageFormat = 'MARKDOWN' | 'CARD' | 'TEXT'
+export type NotifyStatus = 'PENDING' | 'SUCCESS' | 'FAIL' | 'RETRY'
+
+export interface ReportSubscription {
+  id?: number
+  name: string
+  reportId: number
+  reportName?: string
+  channels: string
+  frequency: PushFrequency
+  pushTime?: string
+  pushDayOfWeek?: number
+  pushDayOfMonth?: number
+  dingtalkWebhook?: string
+  dingtalkSecret?: string
+  wecomWebhook?: string
+  emailList?: string
+  emailCcList?: string
+  emailSubject?: string
+  messageFormat: MessageFormat
+  contentTemplate?: string
+  includeChart?: boolean
+  includeAttachment?: boolean
+  attachmentType?: 'EXCEL' | 'PDF'
+  params?: string
+  retryCount?: number
+  maxRetryCount?: number
+  status?: number
+  lastPushTime?: string
+  nextPushTime?: string
+  createTime?: string
+  updateTime?: string
+}
+
+export interface SubscriptionNotifyLog {
+  id?: number
+  subscriptionId?: number
+  reportId?: number
+  channel?: SubscribeChannel
+  status?: NotifyStatus
+  retryCount?: number
+  messageFormat?: MessageFormat
+  requestData?: string
+  responseData?: string
+  errorMsg?: string
+  costTime?: number
+  createTime?: string
+}
+
 export type DataSourceType =
   | 'MYSQL'
   | 'POSTGRESQL'
