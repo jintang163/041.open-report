@@ -8,8 +8,10 @@ import lombok.Getter;
 public enum ReportStatusEnum {
 
     DRAFT(0, "草稿"),
-    PUBLISHED(1, "已发布"),
-    OFFLINE(2, "已下线"),
+    PENDING_APPROVAL(1, "待审批"),
+    PUBLISHED(2, "已发布"),
+    OFFLINE(3, "已下线"),
+    REJECTED(4, "已驳回"),
     DELETED(9, "已删除");
 
     private final Integer code;

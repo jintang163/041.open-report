@@ -17,7 +17,8 @@ import {
   Pagination,
   Upload,
   Switch,
-  Descriptions
+  Descriptions,
+  InputNumber
 } from 'antd'
 import {
   PlusOutlined,
@@ -32,34 +33,36 @@ import {
   EyeOutlined,
   DesignOutlined,
   CloudUploadOutlined,
-  CloudDownloadOutlined
+  CloudDownloadOutlined,
+  HistoryOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  UndoOutlined
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import type { ReportTemplate, PageParams } from '@/types'
+import type { ReportTemplate, PageParams, ReportApproval } from '@/types'
 import {
-  getReportList,
+  getReportListV2,
   createReport,
   updateReport,
   deleteReport,
   batchDeleteReport,
   copyReport,
   exportReportExcel,
-  exportReportPdf
+  exportReportPdf,
+  submitApproval,
+  cancelApproval,
+  getApprovalByTemplateId
 } from '@/api/report'
+import VersionManagement from '@/components/VersionManagement'
 
 interface Report extends ReportTemplate {
   id: number
+  name?: string
+  code?: string
+  type?: number
+  remark?: string
 }
-
-const mockReports: Report[] = [
-  { id: 1, name: '销售月报', code: 'sales_monthly', type: 1, status: 2, remark: '按月统计销售数据，包含柱状图和饼图展示', createBy: 'admin', createTime: '2024-01-01 10:00:00', updateTime: '2024-01-15 14:30:00' },
-  { id: 2, name: '财务分析报表', code: 'finance_analysis', type: 2, status: 2, remark: '财务数据综合分析，含多维度钻取', createBy: 'zhangsan', createTime: '2024-01-02 11:00:00', updateTime: '2024-01-14 09:20:00' },
-  { id: 3, name: '库存统计', code: 'inventory_stat', type: 1, status: 1, remark: '实时库存数据统计与预警', createBy: 'lisi', createTime: '2024-01-03 14:00:00', updateTime: '2024-01-10 16:45:00' },
-  { id: 4, name: '客户分析', code: 'customer_analysis', type: 2, status: 2, remark: '客户画像及消费行为分析', createBy: 'wangwu', createTime: '2024-01-04 09:30:00', updateTime: '2024-01-12 11:15:00' },
-  { id: 5, name: '员工绩效', code: 'employee_perf', type: 1, status: 0, remark: '员工KPI绩效考核报表', createBy: 'zhaoliu', createTime: '2024-01-05 16:20:00', updateTime: '2024-01-08 10:00:00' },
-  { id: 6, name: '生产日报', code: 'production_daily', type: 1, status: 2, remark: '每日生产数据汇总', createBy: 'sunqi', createTime: '2024-01-06 08:00:00', updateTime: '2024-01-15 08:30:00' },
-  { id: 7, name: '采购分析', code: 'purchase_analysis', type: 1, status: 1, remark: '供应商及采购数据分析', createBy: 'zhouba', createTime: '2024-01-07 13:00:00', updateTime: '2024-01-11 15:00:00' }
-]
 
 const ReportManagement = () => {
   const navigate = useNavigate()
@@ -72,34 +75,39 @@ const ReportManagement = () => {
 
   const [searchForm] = Form.useForm()
   const [modalForm] = Form.useForm()
+  const [approvalForm] = Form.useForm()
 
   const [modalVisible, setModalVisible] = useState(false)
   const [previewVisible, setPreviewVisible] = useState(false)
+  const [approvalModalVisible, setApprovalModalVisible] = useState(false)
+  const [versionModalVisible, setVersionModalVisible] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [modalTitle, setModalTitle] = useState('新增报表')
   const [previewReport, setPreviewReport] = useState<Report | null>(null)
+  const [currentReport, setCurrentReport] = useState<Report | null>(null)
+  const [approvalHistory, setApprovalHistory] = useState<ReportApproval[]>([])
 
   const fetchData = async () => {
     setLoading(true)
     try {
       const values = searchForm.getFieldsValue()
-      const params: PageParams = {
+      const params = {
         pageNum,
         pageSize,
-        keyword: values.keyword
+        keyword: values.keyword,
+        status: values.status
       }
-      try {
-        const res = await getReportList(params)
-        setDataSource(res.list)
-        setTotal(res.total)
-      } catch {
-        const filtered = mockReports.filter(r =>
-          (!params.keyword || r.name.includes(params.keyword) || (r.code && r.code.includes(params.keyword))) &&
-          (values.status === undefined || r.status === values.status)
-        )
-        setDataSource(filtered.slice((pageNum - 1) * pageSize, pageNum * pageSize))
-        setTotal(filtered.length)
-      }
+      const res = await getReportListV2(params)
+      setDataSource((res.list || []).map(item => ({
+        ...item,
+        name: item.templateName,
+        code: item.templateCode,
+        type: item.templateType,
+        remark: item.description
+      })))
+      setTotal(res.total || 0)
+    } catch (e) {
+      message.error('获取列表失败')
     } finally {
       setLoading(false)
     }
@@ -124,41 +132,50 @@ const ReportManagement = () => {
     setEditingId(null)
     setModalTitle('新增报表')
     modalForm.resetFields()
-    modalForm.setFieldsValue({ type: 1, status: 0 })
+    modalForm.setFieldsValue({ templateType: 1, status: 0 })
     setModalVisible(true)
   }
 
   const handleEdit = (record: Report) => {
     setEditingId(record.id!)
     setModalTitle('编辑报表')
-    modalForm.setFieldsValue(record)
+    modalForm.setFieldsValue({
+      ...record,
+      templateName: record.templateName,
+      templateCode: record.templateCode,
+      templateType: record.templateType,
+      description: record.description
+    })
     setModalVisible(true)
   }
 
   const handleModalOk = async () => {
     try {
       const values = await modalForm.validateFields()
+      const templateData = {
+        ...values,
+        templateName: values.templateName,
+        templateCode: values.templateCode,
+        templateType: values.templateType,
+        description: values.description
+      }
       if (editingId) {
-        try {
-          await updateReport({ ...values, id: editingId })
-        } catch {}
+        await updateReport({ ...templateData, id: editingId })
         message.success('修改成功')
       } else {
-        try {
-          await createReport(values)
-        } catch {}
+        await createReport(templateData)
         message.success('新增成功')
       }
       setModalVisible(false)
       fetchData()
-    } catch {}
+    } catch {
+      message.error('操作失败')
+    }
   }
 
   const handleDelete = async (id: number) => {
     try {
-      try {
-        await deleteReport(id)
-      } catch {}
+      await deleteReport(id)
       message.success('删除成功')
       fetchData()
     } catch {
@@ -172,9 +189,7 @@ const ReportManagement = () => {
       return
     }
     try {
-      try {
-        await batchDeleteReport(selectedRowKeys.map(k => Number(k)))
-      } catch {}
+      await batchDeleteReport(selectedRowKeys.map(k => Number(k)))
       message.success(`批量删除成功，共删除 ${selectedRowKeys.length} 条记录`)
       setSelectedRowKeys([])
       fetchData()
@@ -185,9 +200,7 @@ const ReportManagement = () => {
 
   const handleCopy = async (record: Report) => {
     try {
-      try {
-        await copyReport(record.id!)
-      } catch {}
+      await copyReport(record.id!)
       message.success('复制成功')
       fetchData()
     } catch {
@@ -195,31 +208,47 @@ const ReportManagement = () => {
     }
   }
 
-  const handlePublish = async (record: Report) => {
+  const handleSubmitApproval = (record: Report) => {
+    setCurrentReport(record)
+    approvalForm.resetFields()
+    setApprovalModalVisible(true)
+  }
+
+  const handleApprovalOk = async () => {
     try {
-      try {
-        await updateReport({ ...record, id: record.id, status: 2 })
-      } catch {
-        setDataSource(prev => prev.map(item => item.id === record.id ? { ...item, status: 2 } : item))
+      const values = await approvalForm.validateFields()
+      if (currentReport) {
+        await submitApproval(currentReport.id!, values.remark)
+        message.success('提交审批成功')
+        setApprovalModalVisible(false)
+        fetchData()
       }
-      message.success('发布成功')
-      fetchData()
     } catch {
-      message.error('发布失败')
+      message.error('提交审批失败')
     }
   }
 
-  const handleUnpublish = async (record: Report) => {
+  const handleCancelApproval = async (record: Report) => {
     try {
-      try {
-        await updateReport({ ...record, id: record.id, status: 1 })
-      } catch {
-        setDataSource(prev => prev.map(item => item.id === record.id ? { ...item, status: 1 } : item))
+      const approvals = await getApprovalByTemplateId(record.id!)
+      const pendingApproval = approvals.find(a => a.approvalStatus === 0)
+      if (pendingApproval) {
+        await cancelApproval(pendingApproval.id!)
+        message.success('已撤销审批')
+        fetchData()
       }
-      message.success('已取消发布')
-      fetchData()
     } catch {
-      message.error('操作失败')
+      message.error('撤销审批失败')
+    }
+  }
+
+  const handleViewApprovalHistory = async (record: Report) => {
+    try {
+      const res = await getApprovalByTemplateId(record.id!)
+      setApprovalHistory(res)
+      setCurrentReport(record)
+    } catch {
+      message.error('获取审批历史失败')
     }
   }
 
@@ -232,11 +261,14 @@ const ReportManagement = () => {
     setPreviewVisible(true)
   }
 
+  const handleVersionManagement = (record: Report) => {
+    setCurrentReport(record)
+    setVersionModalVisible(true)
+  }
+
   const handleExportExcel = async (record: Report) => {
     try {
-      try {
-        await exportReportExcel(record.id!)
-      } catch {}
+      await exportReportExcel(record.id!)
       message.success('导出成功')
     } catch {
       message.error('导出失败')
@@ -245,9 +277,7 @@ const ReportManagement = () => {
 
   const handleExportPdf = async (record: Report) => {
     try {
-      try {
-        await exportReportPdf(record.id!)
-      } catch {}
+      await exportReportPdf(record.id!)
       message.success('导出成功')
     } catch {
       message.error('导出失败')
@@ -257,8 +287,21 @@ const ReportManagement = () => {
   const getStatusTag = (status?: number) => {
     const statusMap: Record<number, { color: string; text: string }> = {
       0: { color: 'default', text: '草稿' },
-      1: { color: 'orange', text: '未发布' },
-      2: { color: 'green', text: '已发布' }
+      1: { color: 'orange', text: '待审批' },
+      2: { color: 'green', text: '已发布' },
+      3: { color: 'blue', text: '已下线' },
+      4: { color: 'red', text: '已驳回' }
+    }
+    const info = statusMap[status || 0]
+    return <Tag color={info.color}>{info.text}</Tag>
+  }
+
+  const getApprovalStatusTag = (status?: number) => {
+    const statusMap: Record<number, { color: string; text: string }> = {
+      0: { color: 'orange', text: '待审批' },
+      1: { color: 'green', text: '已通过' },
+      2: { color: 'red', text: '已驳回' },
+      3: { color: 'default', text: '已撤销' }
     }
     const info = statusMap[status || 0]
     return <Tag color={info.color}>{info.text}</Tag>
@@ -274,6 +317,82 @@ const ReportManagement = () => {
     return <Tag color={info.color}>{info.text}</Tag>
   }
 
+  const getActionButtons = (record: Report) => {
+    const buttons = []
+
+    buttons.push(
+      <Button key="design" type="link" size="small" icon={<DesignOutlined />} onClick={() => handleDesign(record)}>
+        设计
+      </Button>
+    )
+
+    buttons.push(
+      <Button key="preview" type="link" size="small" icon={<EyeOutlined />} onClick={() => handlePreview(record)}>
+        预览
+      </Button>
+    )
+
+    buttons.push(
+      <Button key="version" type="link" size="small" icon={<HistoryOutlined />} onClick={() => handleVersionManagement(record)}>
+        版本
+      </Button>
+    )
+
+    if (record.status === 0) {
+      buttons.push(
+        <Button key="submit" type="link" size="small" icon={<CheckCircleOutlined />} onClick={() => handleSubmitApproval(record)}>
+          提交审批
+        </Button>
+      )
+    }
+
+    if (record.status === 1) {
+      buttons.push(
+        <Button key="cancel" type="link" size="small" icon={<CloseCircleOutlined />} onClick={() => handleCancelApproval(record)}>
+          撤销审批
+        </Button>
+      )
+    }
+
+    if (record.status === 2) {
+      buttons.push(
+        <Button key="offline" type="link" size="small" icon={<PauseCircleOutlined />}>
+          申请下线
+        </Button>
+      )
+    }
+
+    if (record.status === 4) {
+      buttons.push(
+        <Button key="resubmit" type="link" size="small" icon={<UndoOutlined />} onClick={() => handleSubmitApproval(record)}>
+          重新提交
+        </Button>
+      )
+    }
+
+    buttons.push(
+      <Button key="copy" type="link" size="small" icon={<CopyOutlined />} onClick={() => handleCopy(record)}>
+        复制
+      </Button>
+    )
+
+    buttons.push(
+      <Button key="edit" type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>
+        编辑
+      </Button>
+    )
+
+    buttons.push(
+      <Popconfirm key="delete" title="确定删除该报表?" onConfirm={() => handleDelete(record.id!)}>
+        <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+          删除
+        </Button>
+      </Popconfirm>
+    )
+
+    return buttons
+  }
+
   const columns: ColumnsType<Report> = [
     {
       title: 'ID',
@@ -283,8 +402,8 @@ const ReportManagement = () => {
     },
     {
       title: '报表名称',
-      dataIndex: 'name',
-      key: 'name',
+      dataIndex: 'templateName',
+      key: 'templateName',
       width: 180,
       render: (text: string) => (
         <Space>
@@ -295,15 +414,15 @@ const ReportManagement = () => {
     },
     {
       title: '编码',
-      dataIndex: 'code',
-      key: 'code',
+      dataIndex: 'templateCode',
+      key: 'templateCode',
       width: 160,
       render: (text: string) => <code>{text || '-'}</code>
     },
     {
       title: '类型',
-      dataIndex: 'type',
-      key: 'type',
+      dataIndex: 'templateType',
+      key: 'templateType',
       width: 110,
       render: (type: number) => getTypeTag(type)
     },
@@ -317,8 +436,8 @@ const ReportManagement = () => {
     },
     {
       title: '创建人',
-      dataIndex: 'createBy',
-      key: 'createBy',
+      dataIndex: 'createByName',
+      key: 'createByName',
       width: 100
     },
     {
@@ -336,38 +455,71 @@ const ReportManagement = () => {
     {
       title: '操作',
       key: 'action',
-      width: 360,
+      width: 500,
       fixed: 'right',
       render: (_, record) => (
         <Space size="small" wrap>
-          <Button type="link" size="small" icon={<DesignOutlined />} onClick={() => handleDesign(record)}>
-            设计
-          </Button>
-          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => handlePreview(record)}>
-            预览
-          </Button>
-          {record.status === 2 ? (
-            <Button type="link" size="small" icon={<PauseCircleOutlined />} onClick={() => handleUnpublish(record)}>
-              取消发布
-            </Button>
-          ) : (
-            <Button type="link" size="small" icon={<PlayCircleOutlined />} onClick={() => handlePublish(record)}>
-              发布
-            </Button>
-          )}
-          <Button type="link" size="small" icon={<CopyOutlined />} onClick={() => handleCopy(record)}>
-            复制
-          </Button>
-          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>
-            编辑
-          </Button>
-          <Popconfirm title="确定删除该报表?" onConfirm={() => handleDelete(record.id!)}>
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              删除
-            </Button>
-          </Popconfirm>
+          {getActionButtons(record)}
         </Space>
       )
+    }
+  ]
+
+  const approvalHistoryColumns: ColumnsType<ReportApproval> = [
+    {
+      title: '版本',
+      dataIndex: 'version',
+      key: 'version',
+      width: 80,
+      render: (v: number) => <strong>v{v}</strong>
+    },
+    {
+      title: '审批类型',
+      dataIndex: 'approvalType',
+      key: 'approvalType',
+      width: 100,
+      render: (type: number) => type === 1 ? '发布审批' : type === 2 ? '下线审批' : '修改审批'
+    },
+    {
+      title: '状态',
+      dataIndex: 'approvalStatus',
+      key: 'approvalStatus',
+      width: 100,
+      render: (status: number) => getApprovalStatusTag(status)
+    },
+    {
+      title: '提交人',
+      dataIndex: 'submitByName',
+      key: 'submitByName',
+      width: 100
+    },
+    {
+      title: '提交时间',
+      dataIndex: 'submitTime',
+      key: 'submitTime',
+      width: 180
+    },
+    {
+      title: '提交备注',
+      dataIndex: 'submitRemark',
+      key: 'submitRemark'
+    },
+    {
+      title: '审批人',
+      dataIndex: 'approveByName',
+      key: 'approveByName',
+      width: 100
+    },
+    {
+      title: '审批时间',
+      dataIndex: 'approveTime',
+      key: 'approveTime',
+      width: 180
+    },
+    {
+      title: '审批备注',
+      dataIndex: 'approveRemark',
+      key: 'approveRemark'
     }
   ]
 
@@ -389,8 +541,10 @@ const ReportManagement = () => {
                   style={{ width: 130 }}
                   options={[
                     { label: '草稿', value: 0 },
-                    { label: '未发布', value: 1 },
-                    { label: '已发布', value: 2 }
+                    { label: '待审批', value: 1 },
+                    { label: '已发布', value: 2 },
+                    { label: '已下线', value: 3 },
+                    { label: '已驳回', value: 4 }
                   ]}
                 />
               </Form.Item>
@@ -447,7 +601,7 @@ const ReportManagement = () => {
             selectedRowKeys,
             onChange: setSelectedRowKeys
           }}
-          scroll={{ x: 1400 }}
+          scroll={{ x: 1600 }}
         />
         <div style={{ marginTop: 16, textAlign: 'right' }}>
           <Pagination
@@ -478,7 +632,7 @@ const ReportManagement = () => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
-                name="name"
+                name="templateName"
                 label="报表名称"
                 rules={[{ required: true, message: '请输入报表名称' }]}
               >
@@ -487,7 +641,7 @@ const ReportManagement = () => {
             </Col>
             <Col span={12}>
               <Form.Item
-                name="code"
+                name="templateCode"
                 label="报表编码"
                 rules={[{ required: true, message: '请输入报表编码' }]}
               >
@@ -497,7 +651,7 @@ const ReportManagement = () => {
           </Row>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="type" label="报表类型" initialValue={1}>
+              <Form.Item name="templateType" label="报表类型" initialValue={1}>
                 <Select
                   options={[
                     { label: '表格报表', value: 1 },
@@ -508,24 +662,72 @@ const ReportManagement = () => {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="status" label="状态" initialValue={0} valuePropName="checked">
-                <Switch
-                  checkedChildren="已发布"
-                  unCheckedChildren="草稿"
-                  checked={modalForm.getFieldValue('status') === 2}
-                  onChange={(checked) => modalForm.setFieldsValue({ status: checked ? 2 : 0 })}
+              <Form.Item name="status" label="状态" initialValue={0}>
+                <Select
+                  options={[
+                    { label: '草稿', value: 0 },
+                    { label: '待审批', value: 1 },
+                    { label: '已发布', value: 2 }
+                  ]}
                 />
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="remark" label="备注">
-            <Input.TextArea placeholder="请输入备注" rows={3} />
+          <Form.Item name="description" label="描述">
+            <Input.TextArea placeholder="请输入描述" rows={3} />
           </Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title={`预览 - ${previewReport?.name || ''}`}
+        title="提交审批"
+        open={approvalModalVisible}
+        onOk={handleApprovalOk}
+        onCancel={() => setApprovalModalVisible(false)}
+        destroyOnClose
+        width={500}
+        okText="提交"
+      >
+        <Descriptions size="small" bordered column={1} style={{ marginBottom: 16 }}>
+          <Descriptions.Item label="报表名称">{currentReport?.templateName}</Descriptions.Item>
+          <Descriptions.Item label="报表编码">{currentReport?.templateCode}</Descriptions.Item>
+          <Descriptions.Item label="当前状态">{getStatusTag(currentReport?.status)}</Descriptions.Item>
+        </Descriptions>
+        <Form form={approvalForm} layout="vertical">
+          <Form.Item name="remark" label="审批说明">
+            <Input.TextArea placeholder="请输入审批说明（可选）" rows={3} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={`审批历史 - ${currentReport?.templateName || ''}`}
+        open={approvalHistory.length > 0}
+        onCancel={() => {
+          setApprovalHistory([])
+          setCurrentReport(null)
+        }}
+        width={1200}
+        footer={[
+          <Button key="close" onClick={() => {
+            setApprovalHistory([])
+            setCurrentReport(null)
+          }}>
+            关闭
+          </Button>
+        ]}
+      >
+        <Table
+          rowKey="id"
+          columns={approvalHistoryColumns}
+          dataSource={approvalHistory}
+          pagination={false}
+          scroll={{ x: 1200 }}
+        />
+      </Modal>
+
+      <Modal
+        title={`预览 - ${previewReport?.templateName || ''}`}
         open={previewVisible}
         onCancel={() => setPreviewVisible(false)}
         width={1100}
@@ -563,13 +765,13 @@ const ReportManagement = () => {
         {previewReport && (
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <Descriptions size="small" bordered column={3}>
-              <Descriptions.Item label="报表名称">{previewReport.name}</Descriptions.Item>
-              <Descriptions.Item label="编码">{previewReport.code}</Descriptions.Item>
-              <Descriptions.Item label="类型">{getTypeTag(previewReport.type)}</Descriptions.Item>
+              <Descriptions.Item label="报表名称">{previewReport.templateName}</Descriptions.Item>
+              <Descriptions.Item label="编码">{previewReport.templateCode}</Descriptions.Item>
+              <Descriptions.Item label="类型">{getTypeTag(previewReport.templateType)}</Descriptions.Item>
               <Descriptions.Item label="状态">{getStatusTag(previewReport.status)}</Descriptions.Item>
-              <Descriptions.Item label="创建人">{previewReport.createBy}</Descriptions.Item>
+              <Descriptions.Item label="创建人">{previewReport.createByName}</Descriptions.Item>
               <Descriptions.Item label="更新时间">{previewReport.updateTime}</Descriptions.Item>
-              <Descriptions.Item label="备注" span={3}>{previewReport.remark || '-'}</Descriptions.Item>
+              <Descriptions.Item label="描述" span={3}>{previewReport.description || '-'}</Descriptions.Item>
             </Descriptions>
             <Card size="small" title="报表内容预览">
               <div style={{ minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
@@ -583,6 +785,16 @@ const ReportManagement = () => {
           </Space>
         )}
       </Modal>
+
+      {currentReport && (
+        <VersionManagement
+          templateId={currentReport.id!}
+          templateName={currentReport.templateName || ''}
+          open={versionModalVisible}
+          onClose={() => setVersionModalVisible(false)}
+          onRollback={fetchData}
+        />
+      )}
     </Space>
   )
 }

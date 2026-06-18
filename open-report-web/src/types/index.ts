@@ -110,6 +110,63 @@ export interface ReportTemplate {
   createTime?: string
   updateTime?: string
   createBy?: string
+  createByName?: string
+  updateBy?: string
+}
+
+export interface ReportTemplateSnapshot {
+  id?: number
+  templateId?: number
+  version?: number
+  templateName?: string
+  templateJson?: string
+  dataSetBind?: string
+  paramConfig?: string
+  description?: string
+  changeLog?: string
+  status?: number
+  createBy?: number
+  createByName?: string
+  createTime?: string
+}
+
+export interface ReportApproval {
+  id?: number
+  templateId?: number
+  templateName?: string
+  snapshotId?: number
+  version?: number
+  approvalType?: number
+  approvalStatus?: number
+  submitBy?: number
+  submitByName?: string
+  submitTime?: string
+  submitRemark?: string
+  approveBy?: number
+  approveByName?: string
+  approveTime?: string
+  approveRemark?: string
+}
+
+export interface TemplateVersionDiffDTO {
+  templateId?: number
+  baseVersion?: number
+  targetVersion?: number
+  baseVersionName?: string
+  targetVersionName?: string
+  baseCreateByName?: string
+  targetCreateByName?: string
+  baseCreateTime?: string
+  targetCreateTime?: string
+  diffItems?: DiffItem[]
+}
+
+export interface DiffItem {
+  fieldName?: string
+  fieldLabel?: string
+  baseValue?: string
+  targetValue?: string
+  diffType?: 'ADD' | 'DELETE' | 'MODIFY'
 }
 
 export interface PageResult<T> {
