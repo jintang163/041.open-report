@@ -7,7 +7,8 @@ import {
   ColorPicker,
   Tooltip,
   message,
-  Popover
+  Popover,
+  Modal
 } from 'antd'
 import type { MenuProps } from 'antd'
 import {
@@ -49,6 +50,11 @@ import {
   redo as luckysheetRedo,
   refreshLuckysheet
 } from '../../utils/luckysheet'
+import {
+  extractTemplateFromLuckysheet,
+  serializeTemplate
+} from '../../utils/template'
+import { saveDraftReport, submitApproval } from '@/api/report'
 
 const FONT_FAMILIES = [
   'Arial',
@@ -69,12 +75,16 @@ const Toolbar: React.FC = () => {
   const {
     templateName,
     setTemplateName,
+    templateId,
+    setTemplateId,
     setExpressionEditorVisible,
     setConditionalFormatVisible,
     setChartConfigVisible,
     cellValue,
     undoStack,
-    redoStack
+    redoStack,
+    conditionalFormats,
+    charts
   } = useDesignerStore()
 
   const handleUndo = () => {
@@ -85,16 +95,65 @@ const Toolbar: React.FC = () => {
     luckysheetRedo()
   }
 
-  const handleSave = () => {
-    message.success('保存成功')
+  const collectTemplateData = () => {
+    if (!window.luckysheet) return null
+    const sheetsData = window.luckysheet.getSheet()
+    return extractTemplateFromLuckysheet(sheetsData, {
+      name: templateName,
+      conditionalFormats,
+      charts
+    })
+  }
+
+  const handleSave = async () => {
+    const templateData = collectTemplateData()
+    if (!templateData) {
+      message.warning('设计器尚未初始化')
+      return
+    }
+
+    try {
+      const result = await saveDraftReport({
+        id: templateId || undefined,
+        templateName,
+        templateJson: serializeTemplate(templateData)
+      })
+      if (!templateId && result.id) {
+        setTemplateId(result.id)
+      }
+      message.success('保存成功')
+    } catch (e) {
+      message.error('保存失败')
+    }
   }
 
   const handlePreview = () => {
-    message.info('预览功能')
+    if (templateId) {
+      window.open(`/preview/${templateId}`, '_blank')
+    } else {
+      message.warning('请先保存报表再预览')
+    }
   }
 
   const handlePublish = () => {
-    message.success('发布成功')
+    if (!templateId) {
+      message.warning('请先保存报表再发布')
+      return
+    }
+    Modal.confirm({
+      title: '提交发布审批',
+      content: '确认提交发布审批？提交后需管理员审核通过才能正式发布。',
+      okText: '提交',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await submitApproval(templateId, '从设计器提交发布审批')
+          message.success('已提交发布审批，请等待管理员审核')
+        } catch (e) {
+          message.error('提交审批失败')
+        }
+      }
+    })
   }
 
   const applyStyle = (styleKey: string, value: any) => {

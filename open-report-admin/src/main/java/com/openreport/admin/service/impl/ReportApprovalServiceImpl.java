@@ -9,6 +9,7 @@ import com.openreport.admin.enums.ApprovalStatusEnum;
 import com.openreport.admin.enums.ApprovalTypeEnum;
 import com.openreport.admin.mapper.ReportApprovalMapper;
 import com.openreport.admin.mapper.ReportTemplateMapper;
+import com.openreport.admin.mapper.ReportTemplateSnapshotMapper;
 import com.openreport.admin.service.ReportApprovalService;
 import com.openreport.admin.service.ReportTemplateSnapshotService;
 import com.openreport.common.enums.ReportStatusEnum;
@@ -28,6 +29,9 @@ public class ReportApprovalServiceImpl extends ServiceImpl<ReportApprovalMapper,
 
     @Autowired
     private ReportTemplateSnapshotService snapshotService;
+
+    @Autowired
+    private ReportTemplateSnapshotMapper snapshotMapper;
 
     @Override
     public List<ReportApproval> listByTemplateId(Long templateId) {
@@ -101,6 +105,14 @@ public class ReportApprovalServiceImpl extends ServiceImpl<ReportApprovalMapper,
             approval.setApprovalStatus(ApprovalStatusEnum.APPROVED.getCode());
             if (ApprovalTypeEnum.PUBLISH.getCode().equals(approval.getApprovalType())) {
                 template.setStatus(ReportStatusEnum.PUBLISHED.getCode());
+
+                if (approval.getSnapshotId() != null) {
+                    ReportTemplateSnapshot snapshot = snapshotMapper.selectById(approval.getSnapshotId());
+                    if (snapshot != null) {
+                        snapshot.setStatus(ReportStatusEnum.PUBLISHED.getCode());
+                        snapshotMapper.updateById(snapshot);
+                    }
+                }
             } else if (ApprovalTypeEnum.OFFLINE.getCode().equals(approval.getApprovalType())) {
                 template.setStatus(ReportStatusEnum.OFFLINE.getCode());
             }

@@ -12,22 +12,25 @@ import {
   Select,
   Row,
   Col,
-  Card
+  Card,
+  Spin
 } from 'antd'
 import {
   HistoryOutlined,
   RollbackOutlined,
   EyeOutlined,
-  DiffOutlined
+  DiffOutlined,
+  PlayCircleOutlined
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import type { ReportTemplateSnapshot, TemplateVersionDiffDTO } from '@/types'
+import type { ReportTemplateSnapshot, TemplateVersionDiffDTO, DiffItem } from '@/types'
 import {
   getVersionList,
   rollbackToVersion,
   compareVersions,
   getVersionDetail,
-  previewPublish
+  executeReport,
+  getReportById
 } from '@/api/report'
 
 interface VersionManagementProps {
@@ -48,7 +51,9 @@ const VersionManagement = ({
   const [versionList, setVersionList] = useState<ReportTemplateSnapshot[]>([])
   const [loading, setLoading] = useState(false)
   const [previewVisible, setPreviewVisible] = useState(false)
-  const [previewSnapshot, setPreviewSnapshot] = useState<ReportTemplateSnapshot | null>(null)
+  const [previewHtml, setPreviewHtml] = useState<string>('')
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewTitle, setPreviewTitle] = useState('')
   const [baseVersion, setBaseVersion] = useState<number | null>(null)
   const [targetVersion, setTargetVersion] = useState<number | null>(null)
   const [diffResult, setDiffResult] = useState<TemplateVersionDiffDTO | null>(null)
@@ -84,23 +89,33 @@ const VersionManagement = ({
     return <Tag color={info.color}>{info.text}</Tag>
   }
 
-  const handlePreview = async (record: ReportTemplateSnapshot) => {
+  const handlePreviewVersion = async (record: ReportTemplateSnapshot) => {
+    setPreviewTitle(`版本预览 v${record.version} - ${record.templateName}`)
+    setPreviewVisible(true)
+    setPreviewLoading(true)
+    setPreviewHtml('')
     try {
-      const res = await getVersionDetail(templateId, record.version!)
-      setPreviewSnapshot(res)
-      setPreviewVisible(true)
+      const result = await executeReport(templateId)
+      setPreviewHtml(result?.html || '<div style="text-align:center;padding:40px;color:#999">暂无渲染内容</div>')
     } catch (e) {
-      message.error('获取版本详情失败')
+      setPreviewHtml('<div style="text-align:center;padding:40px;color:#f50">报表渲染失败</div>')
+    } finally {
+      setPreviewLoading(false)
     }
   }
 
   const handlePreviewPublish = async () => {
+    setPreviewTitle(`发布预览 - ${templateName}`)
+    setPreviewVisible(true)
+    setPreviewLoading(true)
+    setPreviewHtml('')
     try {
-      const res = await previewPublish(templateId)
-      setPreviewSnapshot(res)
-      setPreviewVisible(true)
+      const result = await executeReport(templateId)
+      setPreviewHtml(result?.html || '<div style="text-align:center;padding:40px;color:#999">暂无渲染内容</div>')
     } catch (e) {
-      message.error('获取发布预览失败')
+      setPreviewHtml('<div style="text-align:center;padding:40px;color:#f50">报表渲染失败</div>')
+    } finally {
+      setPreviewLoading(false)
     }
   }
 
@@ -189,10 +204,10 @@ const VersionManagement = ({
           <Button
             type="link"
             size="small"
-            icon={<EyeOutlined />}
-            onClick={() => handlePreview(record)}
+            icon={<PlayCircleOutlined />}
+            onClick={() => handlePreviewVersion(record)}
           >
-            预览
+            渲染预览
           </Button>
           <Popconfirm
             title={`确定回滚到版本 v${record.version}?`}
@@ -210,12 +225,19 @@ const VersionManagement = ({
     }
   ]
 
-  const diffColumns: ColumnsType<NonNullable<TemplateVersionDiffDTO['diffItems']>[number]> = [
+  const diffColumns: ColumnsType<DiffItem> = [
     {
-      title: '字段',
+      title: '路径',
+      dataIndex: 'path',
+      key: 'path',
+      width: 200,
+      render: (v: string) => <span style={{ color: '#666', fontSize: 12 }}>{v}</span>
+    },
+    {
+      title: '变更项',
       dataIndex: 'fieldLabel',
       key: 'fieldLabel',
-      width: 120
+      width: 200
     },
     {
       title: '变更类型',
@@ -229,7 +251,17 @@ const VersionManagement = ({
       dataIndex: 'baseValue',
       key: 'baseValue',
       render: (v: string) => (
-        <div style={{ maxHeight: 120, overflow: 'auto', fontFamily: 'monospace', fontSize: 12 }}>
+        <div
+          style={{
+            maxHeight: 120,
+            overflow: 'auto',
+            fontFamily: 'monospace',
+            fontSize: 12,
+            background: '#fff1f0',
+            padding: 4,
+            borderRadius: 4
+          }}
+        >
           {v || '-'}
         </div>
       )
@@ -239,7 +271,17 @@ const VersionManagement = ({
       dataIndex: 'targetValue',
       key: 'targetValue',
       render: (v: string) => (
-        <div style={{ maxHeight: 120, overflow: 'auto', fontFamily: 'monospace', fontSize: 12 }}>
+        <div
+          style={{
+            maxHeight: 120,
+            overflow: 'auto',
+            fontFamily: 'monospace',
+            fontSize: 12,
+            background: '#f6ffed',
+            padding: 4,
+            borderRadius: 4
+          }}
+        >
           {v || '-'}
         </div>
       )
@@ -247,7 +289,7 @@ const VersionManagement = ({
   ]
 
   const versionOptions = versionList.map(v => ({
-    label: `v${v.version} - ${v.templateName}`,
+    label: `v${v.version} - ${v.templateName} (${v.createByName || ''})`,
     value: v.version!
   }))
 
@@ -275,8 +317,8 @@ const VersionManagement = ({
               children: (
                 <>
                   <div style={{ marginBottom: 16 }}>
-                    <Button icon={<EyeOutlined />} onClick={handlePreviewPublish}>
-                      发布预览
+                    <Button icon={<PlayCircleOutlined />} onClick={handlePreviewPublish}>
+                      发布预览（渲染）
                     </Button>
                   </div>
                   <Table
@@ -297,7 +339,7 @@ const VersionManagement = ({
                 <div>
                   <Card size="small" style={{ marginBottom: 16 }}>
                     <Row gutter={16}>
-                      <Col span={8}>
+                      <Col span={9}>
                         <Select
                           placeholder="选择基准版本"
                           style={{ width: '100%' }}
@@ -306,7 +348,7 @@ const VersionManagement = ({
                           onChange={setBaseVersion}
                         />
                       </Col>
-                      <Col span={8}>
+                      <Col span={9}>
                         <Select
                           placeholder="选择目标版本"
                           style={{ width: '100%' }}
@@ -315,7 +357,7 @@ const VersionManagement = ({
                           onChange={setTargetVersion}
                         />
                       </Col>
-                      <Col span={8}>
+                      <Col span={6}>
                         <Button
                           type="primary"
                           icon={<DiffOutlined />}
@@ -352,12 +394,12 @@ const VersionManagement = ({
                         </Descriptions>
                       </Card>
                       <Table
-                        rowKey="fieldName"
+                        rowKey={(r) => `${r.fieldName}-${r.path}-${r.diffType}`}
                         loading={diffLoading}
                         columns={diffColumns}
                         dataSource={diffResult.diffItems}
                         pagination={false}
-                        scroll={{ x: 1000 }}
+                        scroll={{ x: 1100 }}
                       />
                     </>
                   )}
@@ -369,60 +411,28 @@ const VersionManagement = ({
       </Modal>
 
       <Modal
-        title={`预览版本 - ${previewSnapshot?.templateName}`}
+        title={previewTitle}
         open={previewVisible}
         onCancel={() => setPreviewVisible(false)}
-        width={900}
+        width={1100}
         footer={[
           <Button key="close" onClick={() => setPreviewVisible(false)}>
             关闭
           </Button>
         ]}
       >
-        {previewSnapshot && (
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <Descriptions size="small" bordered column={2}>
-              <Descriptions.Item label="版本号">v{previewSnapshot.version}</Descriptions.Item>
-              <Descriptions.Item label="状态">
-                {getStatusTag(previewSnapshot.status)}
-              </Descriptions.Item>
-              <Descriptions.Item label="模板名称">
-                {previewSnapshot.templateName}
-              </Descriptions.Item>
-              <Descriptions.Item label="创建人">
-                {previewSnapshot.createByName}
-              </Descriptions.Item>
-              <Descriptions.Item label="创建时间">
-                {previewSnapshot.createTime}
-              </Descriptions.Item>
-              <Descriptions.Item label="变更说明">
-                {previewSnapshot.changeLog || '-'}
-              </Descriptions.Item>
-              <Descriptions.Item label="描述" span={2}>
-                {previewSnapshot.description || '-'}
-              </Descriptions.Item>
-            </Descriptions>
-            <Card size="small" title="模板内容">
-              <pre
-                style={{
-                  maxHeight: 400,
-                  overflow: 'auto',
-                  background: '#f5f5f5',
-                  padding: 16,
-                  borderRadius: 4
-                }}
-              >
-                {JSON.stringify(
-                  previewSnapshot.templateJson
-                    ? JSON.parse(previewSnapshot.templateJson)
-                    : {},
-                  null,
-                  2
-                )}
-              </pre>
-            </Card>
-          </Space>
-        )}
+        <Spin spinning={previewLoading} tip="正在渲染报表...">
+          <div
+            style={{
+              minHeight: 500,
+              background: '#fff',
+              border: '1px solid #f0f0f0',
+              borderRadius: 8,
+              overflow: 'auto'
+            }}
+            dangerouslySetInnerHTML={{ __html: previewHtml || '<div style="text-align:center;padding:80px;color:#ccc">等待渲染...</div>' }}
+          />
+        </Spin>
       </Modal>
     </>
   )

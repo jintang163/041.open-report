@@ -167,6 +167,7 @@ export interface DiffItem {
   baseValue?: string
   targetValue?: string
   diffType?: 'ADD' | 'DELETE' | 'MODIFY'
+  path?: string
 }
 
 export interface PageResult<T> {

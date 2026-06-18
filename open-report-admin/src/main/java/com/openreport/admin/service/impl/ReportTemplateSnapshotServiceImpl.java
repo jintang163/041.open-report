@@ -140,18 +140,16 @@ public class ReportTemplateSnapshotServiceImpl extends ServiceImpl<ReportTemplat
 
         List<TemplateVersionDiffDTO.DiffItem> diffItems = new ArrayList<>();
 
-        compareField(diffItems, "templateName", "模板名称",
+        compareField(diffItems, "templateName", "模板名称", "基本信息",
                 baseSnapshot.getTemplateName(), targetSnapshot.getTemplateName());
-        compareField(diffItems, "description", "描述",
+        compareField(diffItems, "description", "描述", "基本信息",
                 baseSnapshot.getDescription(), targetSnapshot.getDescription());
-        compareField(diffItems, "dataSetBind", "数据集绑定",
+        compareField(diffItems, "dataSetBind", "数据集绑定", "数据配置",
                 baseSnapshot.getDataSetBind(), targetSnapshot.getDataSetBind());
-        compareField(diffItems, "paramConfig", "参数配置",
+        compareField(diffItems, "paramConfig", "参数配置", "数据配置",
                 baseSnapshot.getParamConfig(), targetSnapshot.getParamConfig());
-        compareField(diffItems, "changeLog", "变更说明",
-                baseSnapshot.getChangeLog(), targetSnapshot.getChangeLog());
-        compareJsonField(diffItems, "templateJson", "模板内容",
-                baseSnapshot.getTemplateJson(), targetSnapshot.getTemplateJson());
+
+        compareTemplateJsonDiff(diffItems, baseSnapshot.getTemplateJson(), targetSnapshot.getTemplateJson());
 
         diffDTO.setDiffItems(diffItems);
         return diffDTO;
@@ -190,7 +188,7 @@ public class ReportTemplateSnapshotServiceImpl extends ServiceImpl<ReportTemplat
     }
 
     private void compareField(List<TemplateVersionDiffDTO.DiffItem> diffItems,
-                              String fieldName, String fieldLabel,
+                              String fieldName, String fieldLabel, String path,
                               String baseValue, String targetValue) {
         String baseStr = baseValue != null ? baseValue : "";
         String targetStr = targetValue != null ? targetValue : "";
@@ -205,14 +203,13 @@ public class ReportTemplateSnapshotServiceImpl extends ServiceImpl<ReportTemplat
                 diffType = "MODIFY";
             }
             diffItems.add(new TemplateVersionDiffDTO.DiffItem(
-                    fieldName, fieldLabel, baseValue, targetValue, diffType
+                    fieldName, fieldLabel, baseValue, targetValue, diffType, path
             ));
         }
     }
 
-    private void compareJsonField(List<TemplateVersionDiffDTO.DiffItem> diffItems,
-                                  String fieldName, String fieldLabel,
-                                  String baseJson, String targetJson) {
+    private void compareTemplateJsonDiff(List<TemplateVersionDiffDTO.DiffItem> diffItems,
+                                         String baseJson, String targetJson) {
         String baseStr = baseJson != null ? baseJson : "";
         String targetStr = targetJson != null ? targetJson : "";
 
@@ -220,26 +217,258 @@ public class ReportTemplateSnapshotServiceImpl extends ServiceImpl<ReportTemplat
             return;
         }
 
-        if (baseStr.isEmpty() || targetStr.isEmpty()) {
-            compareField(diffItems, fieldName, fieldLabel, baseJson, targetJson);
+        if (baseStr.isEmpty()) {
+            diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                    "templateJson", "模板内容", null, targetJson, "ADD", "模板内容"
+            ));
+            return;
+        }
+
+        if (targetStr.isEmpty()) {
+            diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                    "templateJson", "模板内容", baseJson, null, "DELETE", "模板内容"
+            ));
             return;
         }
 
         try {
             JsonNode baseNode = objectMapper.readTree(baseStr);
-            JsonNode targetNode = objectMapper.readTree(targetStr);
+            JsonNode targetNode = objectMapper.readTree(targetJson);
 
-            if (!baseNode.equals(targetNode)) {
-                diffItems.add(new TemplateVersionDiffDTO.DiffItem(
-                        fieldName, fieldLabel, baseJson, targetJson, "MODIFY"
-                ));
-            }
+            compareSheetsDiff(diffItems, baseNode, targetNode);
+            compareArrayItems(diffItems, "conditionalFormats", "条件格式", "模板内容.条件格式",
+                    baseNode.get("conditionalFormats"), targetNode.get("conditionalFormats"));
+            compareArrayItems(diffItems, "charts", "图表配置", "模板内容.图表配置",
+                    baseNode.get("charts"), targetNode.get("charts"));
+            compareArrayItems(diffItems, "parameters", "参数定义", "模板内容.参数定义",
+                    baseNode.get("parameters"), targetNode.get("parameters"));
+            compareArrayItems(diffItems, "datasets", "数据集定义", "模板内容.数据集定义",
+                    baseNode.get("datasets"), targetNode.get("datasets"));
+
         } catch (JsonProcessingException e) {
             if (!baseStr.equals(targetStr)) {
                 diffItems.add(new TemplateVersionDiffDTO.DiffItem(
-                        fieldName, fieldLabel, baseJson, targetJson, "MODIFY"
+                        "templateJson", "模板内容", baseJson, targetJson, "MODIFY", "模板内容"
                 ));
             }
+        }
+    }
+
+    private void compareSheetsDiff(List<TemplateVersionDiffDTO.DiffItem> diffItems,
+                                   JsonNode baseNode, JsonNode targetNode) {
+        JsonNode baseSheets = baseNode.get("sheets");
+        JsonNode targetSheets = targetNode.get("sheets");
+
+        if (baseSheets == null && targetSheets == null) return;
+
+        int baseLen = baseSheets != null ? baseSheets.size() : 0;
+        int targetLen = targetSheets != null ? targetSheets.size() : 0;
+
+        if (baseLen != targetLen) {
+            diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                    "sheets", "工作表数量",
+                    String.valueOf(baseLen), String.valueOf(targetLen), "MODIFY", "模板内容.工作表"
+            ));
+        }
+
+        int minLen = Math.min(baseLen, targetLen);
+        for (int i = 0; i < minLen; i++) {
+            JsonNode baseSheet = baseSheets != null ? baseSheets.get(i) : null;
+            JsonNode targetSheet = targetSheets != null ? targetSheets.get(i) : null;
+            String sheetName = (baseSheet != null ? baseSheet.path("name").asText() :
+                    (targetSheet != null ? targetSheet.path("name").asText() : "Sheet" + (i + 1)));
+            String pathPrefix = "模板内容.工作表." + sheetName;
+
+            if (baseSheet == null || targetSheet == null) continue;
+
+            compareJsonNodeField(diffItems, "name", "工作表名称", pathPrefix,
+                    baseSheet.get("name"), targetSheet.get("name"));
+            compareJsonNodeField(diffItems, "frozen", "冻结配置", pathPrefix,
+                    baseSheet.get("frozen"), targetSheet.get("frozen"));
+
+            compareCellsDiff(diffItems, pathPrefix, baseSheet, targetSheet);
+            compareColumnRowConfig(diffItems, pathPrefix, baseSheet, targetSheet);
+        }
+    }
+
+    private void compareCellsDiff(List<TemplateVersionDiffDTO.DiffItem> diffItems,
+                                  String pathPrefix, JsonNode baseSheet, JsonNode targetSheet) {
+        JsonNode baseCells = baseSheet.get("cells");
+        JsonNode targetCells = targetSheet.get("cells");
+
+        if (baseCells == null && targetCells == null) return;
+
+        java.util.Map<String, JsonNode> baseCellMap = buildCellMap(baseCells);
+        java.util.Map<String, JsonNode> targetCellMap = buildCellMap(targetCells);
+
+        java.util.Set<String> allKeys = new java.util.LinkedHashSet<>();
+        allKeys.addAll(baseCellMap.keySet());
+        allKeys.addAll(targetCellMap.keySet());
+
+        for (String key : allKeys) {
+            JsonNode baseCell = baseCellMap.get(key);
+            JsonNode targetCell = targetCellMap.get(key);
+            String cellPath = pathPrefix + ".单元格[" + key + "]";
+
+            if (baseCell == null && targetCell != null) {
+                diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                        "cell", "单元格 " + key, null, truncateJson(targetCell), "ADD", cellPath
+                ));
+            } else if (baseCell != null && targetCell == null) {
+                diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                        "cell", "单元格 " + key, truncateJson(baseCell), null, "DELETE", cellPath
+                ));
+            } else if (baseCell != null && targetCell != null && !baseCell.equals(targetCell)) {
+                List<String> subDiffs = findCellSubDiff(baseCell, targetCell);
+                for (String subDiff : subDiffs) {
+                    diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                            "cell", "单元格 " + key + " " + subDiff,
+                            truncateJson(baseCell), truncateJson(targetCell), "MODIFY", cellPath
+                    ));
+                }
+                if (subDiffs.isEmpty()) {
+                    diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                            "cell", "单元格 " + key,
+                            truncateJson(baseCell), truncateJson(targetCell), "MODIFY", cellPath
+                    ));
+                }
+            }
+        }
+    }
+
+    private java.util.Map<String, JsonNode> buildCellMap(JsonNode cells) {
+        java.util.Map<String, JsonNode> map = new java.util.LinkedHashMap<>();
+        if (cells == null || !cells.isArray()) return map;
+        for (JsonNode cell : cells) {
+            String key = cell.path("row").asText() + "," + cell.path("col").asText();
+            map.put(key, cell);
+        }
+        return map;
+    }
+
+    private List<String> findCellSubDiff(JsonNode baseCell, JsonNode targetCell) {
+        List<String> diffs = new ArrayList<>();
+        String[] cellFields = {"value", "formula", "expression"};
+        for (String field : cellFields) {
+            JsonNode baseVal = baseCell.get(field);
+            JsonNode targetVal = targetCell.get(field);
+            if (!Objects.equals(baseVal, targetVal)) {
+                diffs.add(field + ": " + nullableStr(baseVal) + " → " + nullableStr(targetVal));
+            }
+        }
+        JsonNode baseStyle = baseCell.get("style");
+        JsonNode targetStyle = targetCell.get("style");
+        if (!Objects.equals(baseStyle, targetStyle)) {
+            diffs.add("样式变更");
+        }
+        JsonNode baseBinding = baseCell.get("dataBinding");
+        JsonNode targetBinding = targetCell.get("dataBinding");
+        if (!Objects.equals(baseBinding, targetBinding)) {
+            diffs.add("数据绑定变更");
+        }
+        return diffs;
+    }
+
+    private String nullableStr(JsonNode node) {
+        return node == null || node.isNull() ? "空" : node.asText();
+    }
+
+    private String truncateJson(JsonNode node) {
+        if (node == null) return null;
+        String str = node.toString();
+        return str.length() > 300 ? str.substring(0, 300) + "..." : str;
+    }
+
+    private void compareColumnRowConfig(List<TemplateVersionDiffDTO.DiffItem> diffItems,
+                                        String pathPrefix, JsonNode baseSheet, JsonNode targetSheet) {
+        JsonNode baseConfig = baseSheet.get("columnWidths");
+        JsonNode targetConfig = targetSheet.get("columnWidths");
+        if (!Objects.equals(baseConfig, targetConfig)) {
+            diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                    "columnWidths", "列宽配置",
+                    truncateJson(baseConfig), truncateJson(targetConfig), "MODIFY", pathPrefix
+            ));
+        }
+
+        baseConfig = baseSheet.get("rowHeights");
+        targetConfig = targetSheet.get("rowHeights");
+        if (!Objects.equals(baseConfig, targetConfig)) {
+            diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                    "rowHeights", "行高配置",
+                    truncateJson(baseConfig), truncateJson(targetConfig), "MODIFY", pathPrefix
+            ));
+        }
+
+        baseConfig = baseSheet.get("mergedCells");
+        targetConfig = targetSheet.get("mergedCells");
+        if (!Objects.equals(baseConfig, targetConfig)) {
+            diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                    "mergedCells", "合并单元格",
+                    truncateJson(baseConfig), truncateJson(targetConfig), "MODIFY", pathPrefix
+            ));
+        }
+    }
+
+    private void compareJsonNodeField(List<TemplateVersionDiffDTO.DiffItem> diffItems,
+                                      String fieldName, String fieldLabel, String path,
+                                      JsonNode baseVal, JsonNode targetVal) {
+        if (!Objects.equals(baseVal, targetVal)) {
+            String diffType = (baseVal == null || baseVal.isNull()) ? "ADD" :
+                    (targetVal == null || targetVal.isNull()) ? "DELETE" : "MODIFY";
+            diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                    fieldName, fieldLabel,
+                    baseVal == null ? null : baseVal.asText(),
+                    targetVal == null ? null : targetVal.asText(),
+                    diffType, path
+            ));
+        }
+    }
+
+    private void compareArrayItems(List<TemplateVersionDiffDTO.DiffItem> diffItems,
+                                   String fieldName, String fieldLabel, String path,
+                                   JsonNode baseArr, JsonNode targetArr) {
+        if (Objects.equals(baseArr, targetArr)) return;
+
+        int baseLen = baseArr != null && baseArr.isArray() ? baseArr.size() : 0;
+        int targetLen = targetArr != null && targetArr.isArray() ? targetArr.size() : 0;
+
+        if (baseLen != targetLen) {
+            diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                    fieldName, fieldLabel + "数量",
+                    String.valueOf(baseLen), String.valueOf(targetLen), "MODIFY", path
+            ));
+        }
+
+        int minLen = Math.min(baseLen, targetLen);
+        for (int i = 0; i < minLen; i++) {
+            JsonNode baseItem = baseArr.get(i);
+            JsonNode targetItem = targetArr.get(i);
+            if (!baseItem.equals(targetItem)) {
+                String itemName = baseItem.path("name").asText(
+                        baseItem.path("id").asText(fieldLabel + "[" + i + "]"));
+                diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                        fieldName, fieldLabel + " - " + itemName,
+                        truncateJson(baseItem), truncateJson(targetItem), "MODIFY", path + "." + itemName
+                ));
+            }
+        }
+
+        for (int i = minLen; i < targetLen; i++) {
+            JsonNode item = targetArr.get(i);
+            String itemName = item.path("name").asText(fieldLabel + "[" + i + "]");
+            diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                    fieldName, fieldLabel + " - " + itemName,
+                    null, truncateJson(item), "ADD", path + "." + itemName
+            ));
+        }
+
+        for (int i = minLen; i < baseLen; i++) {
+            JsonNode item = baseArr.get(i);
+            String itemName = item.path("name").asText(fieldLabel + "[" + i + "]");
+            diffItems.add(new TemplateVersionDiffDTO.DiffItem(
+                    fieldName, fieldLabel + " - " + itemName,
+                    truncateJson(item), null, "DELETE", path + "." + itemName
+            ));
         }
     }
 }

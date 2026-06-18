@@ -16,6 +16,7 @@ import FieldPermissionManagement from '@/pages/system/field-permission'
 import DatasourceManagement from '@/pages/datasource'
 import DatasetManagement from '@/pages/dataset'
 import ReportManagement from '@/pages/report'
+import ApprovalManagement from '@/pages/approval'
 import ScheduleManagement from '@/pages/schedule'
 import EmbedDemo from '@/pages/embed/demo'
 import PrintPage from '@/pages/print'
@@ -92,7 +93,12 @@ const routes = [
             meta: { title: '报表管理', icon: 'FileTextOutlined' }
           },
           {
-            path: 'report/designer/:id?',
+            path: 'approval',
+            element: withLoading(ApprovalManagement)(),
+            meta: { title: '审批管理', icon: 'AuditOutlined' }
+          },
+          {
+            path: 'designer/:id?',
             element: <Designer />,
             meta: { title: '报表设计器', icon: 'EditOutlined', hideInMenu: true }
           },

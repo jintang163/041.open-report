@@ -46,12 +46,23 @@ public class TemplateVersionDiffDTO implements Serializable {
 
         private String diffType;
 
+        private String path;
+
         public DiffItem(String fieldName, String fieldLabel, String baseValue, String targetValue, String diffType) {
             this.fieldName = fieldName;
             this.fieldLabel = fieldLabel;
             this.baseValue = baseValue;
             this.targetValue = targetValue;
             this.diffType = diffType;
+        }
+
+        public DiffItem(String fieldName, String fieldLabel, String baseValue, String targetValue, String diffType, String path) {
+            this.fieldName = fieldName;
+            this.fieldLabel = fieldLabel;
+            this.baseValue = baseValue;
+            this.targetValue = targetValue;
+            this.diffType = diffType;
+            this.path = path;
         }
     }
 }
