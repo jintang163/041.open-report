@@ -5,6 +5,7 @@ import com.openreport.admin.dto.TemplateEditLockInfo;
 public interface TemplateEditLockService {
 
     String TEMPLATE_LOCK_KEY_PREFIX = "openreport:template:edit:lock:";
+    String TEMPLATE_LOCK_INFO_PREFIX = "openreport:template:edit:info:";
     long DEFAULT_LOCK_EXPIRE_SECONDS = 5 * 60;
     long HEARTBEAT_INTERVAL_SECONDS = 60;
 
@@ -17,4 +18,8 @@ public interface TemplateEditLockService {
     TemplateEditLockInfo getLockInfo(Long templateId);
 
     boolean isLockOwner(Long templateId, Long userId, String lockToken);
+
+    boolean isLocked(Long templateId);
+
+    boolean checkLockOrThrow(Long templateId, Long userId, String lockToken);
 }

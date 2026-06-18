@@ -21,6 +21,10 @@ public interface ReportTemplateService extends IService<ReportTemplate> {
 
     ReportTemplate saveDraftWithLock(ReportTemplate template, Long userId, String userName, String lockToken);
 
+    void removeByIdWithLock(Long id, Long userId, String lockToken);
+
+    void checkLockOrThrow(Long templateId, Long userId, String lockToken);
+
     TemplateEditLockInfo enterEdit(Long templateId, Long userId, String userName);
 
     boolean leaveEdit(Long templateId, Long userId, String lockToken);

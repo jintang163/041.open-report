@@ -76,6 +76,7 @@ public class ReportTemplateServiceImpl extends ServiceImpl<ReportTemplateMapper,
         if (sourceTemplate == null) {
             throw new RuntimeException("源模板不存在");
         }
+        templateEditLockService.checkLockOrThrow(id, userId, null);
 
         ReportTemplate newTemplate = new ReportTemplate();
         newTemplate.setTemplateName(sourceTemplate.getTemplateName() + "_副本");
@@ -139,17 +140,8 @@ public class ReportTemplateServiceImpl extends ServiceImpl<ReportTemplateMapper,
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ReportTemplate saveDraftWithLock(ReportTemplate template, Long userId, String userName, String lockToken) {
+        templateEditLockService.checkLockOrThrow(template.getId(), userId, lockToken);
         if (template.getId() != null) {
-            boolean isOwner = templateEditLockService.isLockOwner(template.getId(), userId, lockToken);
-            if (!isOwner) {
-                TemplateEditLockInfo lockInfo = templateEditLockService.getLockInfo(template.getId());
-                if (lockInfo != null) {
-                    throw new RuntimeException(ResultCode.TEMPLATE_LOCKED.getCode() + ":" +
-                            lockInfo.getUserName() + "正在编辑该模板，请稍后再试");
-                } else {
-                    throw new RuntimeException(ResultCode.TEMPLATE_LOCK_NOT_OWNER.getMessage());
-                }
-            }
             templateEditLockService.renewLock(template.getId(), userId, lockToken);
         }
         return saveDraft(template, userId, userName);
@@ -177,5 +169,21 @@ public class ReportTemplateServiceImpl extends ServiceImpl<ReportTemplateMapper,
     @Override
     public TemplateEditLockInfo getLockStatus(Long templateId) {
         return templateEditLockService.getLockInfo(templateId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void removeByIdWithLock(Long id, Long userId, String lockToken) {
+        templateEditLockService.checkLockOrThrow(id, userId, lockToken);
+        ReportTemplate template = baseMapper.selectById(id);
+        if (template != null) {
+            baseMapper.deleteById(id);
+            pushService.pushTemplateChange(template, "DELETE");
+        }
+    }
+
+    @Override
+    public void checkLockOrThrow(Long templateId, Long userId, String lockToken) {
+        templateEditLockService.checkLockOrThrow(templateId, userId, lockToken);
     }
 }

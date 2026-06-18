@@ -91,24 +91,14 @@ public class ReportTemplateController {
             @RequestHeader(value = "X-Lock-Token", required = false) String lockToken) {
         Long userId = SecurityContextHolder.getUserId();
         String userName = SecurityContextHolder.getUsername();
+        if (template.getId() != null && (lockToken == null || lockToken.trim().isEmpty())) {
+            return Result.failure(ResultCode.TEMPLATE_LOCK_NOT_OWNER, "编辑已存在模板必须携带锁令牌");
+        }
         try {
             ReportTemplate result = reportTemplateService.saveDraftWithLock(template, userId, userName, lockToken);
             return Result.success(result);
         } catch (RuntimeException e) {
-            String msg = e.getMessage();
-            if (msg != null && msg.contains(":")) {
-                String[] parts = msg.split(":", 2);
-                try {
-                    int code = Integer.parseInt(parts[0]);
-                    for (ResultCode rc : ResultCode.values()) {
-                        if (rc.getCode().equals(code)) {
-                            return Result.failure(rc, parts[1]);
-                        }
-                    }
-                } catch (NumberFormatException ignored) {
-                }
-            }
-            return Result.failure(ResultCode.TEMPLATE_LOCK_NOT_OWNER, msg);
+            return handleLockException(e);
         }
     }
 
@@ -120,33 +110,30 @@ public class ReportTemplateController {
             @RequestHeader(value = "X-Lock-Token", required = false) String lockToken) {
         Long userId = SecurityContextHolder.getUserId();
         String userName = SecurityContextHolder.getUsername();
+        if (template.getId() != null && (lockToken == null || lockToken.trim().isEmpty())) {
+            return Result.failure(ResultCode.TEMPLATE_LOCK_NOT_OWNER, "编辑已存在模板必须携带锁令牌");
+        }
         try {
             reportTemplateService.saveDraftWithLock(template, userId, userName, lockToken);
             return Result.success();
         } catch (RuntimeException e) {
-            String msg = e.getMessage();
-            if (msg != null && msg.contains(":")) {
-                String[] parts = msg.split(":", 2);
-                try {
-                    int code = Integer.parseInt(parts[0]);
-                    for (ResultCode rc : ResultCode.values()) {
-                        if (rc.getCode().equals(code)) {
-                            return Result.failure(rc, parts[1]);
-                        }
-                    }
-                } catch (NumberFormatException ignored) {
-                }
-            }
-            return Result.failure(ResultCode.TEMPLATE_LOCK_NOT_OWNER, msg);
+            return handleLockException(e);
         }
     }
 
     @ApiOperation("删除报表模板")
     @DeleteMapping("/{id}")
     @RequirePerms("report:designer:remove")
-    public Result<Void> delete(@PathVariable Long id) {
-        reportTemplateService.removeById(id);
-        return Result.success();
+    public Result<Void> delete(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-Lock-Token", required = false) String lockToken) {
+        Long userId = SecurityContextHolder.getUserId();
+        try {
+            reportTemplateService.removeByIdWithLock(id, userId, lockToken);
+            return Result.success();
+        } catch (RuntimeException e) {
+            return handleLockException(e);
+        }
     }
 
     @ApiOperation("复制模板")
@@ -155,8 +142,12 @@ public class ReportTemplateController {
     public Result<ReportTemplate> copyTemplate(@PathVariable Long id) {
         Long userId = SecurityContextHolder.getUserId();
         String userName = SecurityContextHolder.getUsername();
-        ReportTemplate result = reportTemplateService.copyTemplate(id, userId, userName);
-        return Result.success(result);
+        try {
+            ReportTemplate result = reportTemplateService.copyTemplate(id, userId, userName);
+            return Result.success(result);
+        } catch (RuntimeException e) {
+            return handleLockException(e);
+        }
     }
 
     @ApiOperation("提交审批")
@@ -203,11 +194,21 @@ public class ReportTemplateController {
     @RequirePerms("report:designer:edit")
     public Result<ReportTemplateSnapshot> rollbackToVersion(
             @PathVariable Long id,
-            @PathVariable Integer version) {
+            @PathVariable Integer version,
+            @RequestHeader(value = "X-Lock-Token", required = false) String lockToken) {
         Long userId = SecurityContextHolder.getUserId();
         String userName = SecurityContextHolder.getUsername();
-        ReportTemplateSnapshot result = snapshotService.rollbackToVersion(id, version, userId, userName);
-        return Result.success(result);
+        if (lockToken == null || lockToken.trim().isEmpty()) {
+            return Result.failure(ResultCode.TEMPLATE_LOCK_NOT_OWNER, "回滚模板必须携带锁令牌");
+        }
+        try {
+            reportTemplateService.checkLockOrThrow(id, userId, lockToken);
+            ReportTemplateSnapshot result = snapshotService.rollbackToVersion(id, version, userId, userName);
+            reportTemplateService.heartbeat(id, userId, lockToken);
+            return Result.success(result);
+        } catch (RuntimeException e) {
+            return handleLockException(e);
+        }
     }
 
     @ApiOperation("获取最新发布版本")
@@ -308,5 +309,23 @@ public class ReportTemplateController {
             result.put("isOwner", false);
         }
         return Result.success(result);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> Result<T> handleLockException(RuntimeException e) {
+        String msg = e.getMessage();
+        if (msg != null && msg.contains(":")) {
+            String[] parts = msg.split(":", 2);
+            try {
+                int code = Integer.parseInt(parts[0]);
+                for (ResultCode rc : ResultCode.values()) {
+                    if (rc.getCode().equals(code)) {
+                        return (Result<T>) Result.failure(rc, parts[1]);
+                    }
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return (Result<T>) Result.failure(ResultCode.TEMPLATE_LOCK_NOT_OWNER, msg);
     }
 }

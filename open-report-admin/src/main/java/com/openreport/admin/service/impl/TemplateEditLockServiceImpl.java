@@ -1,13 +1,15 @@
 package com.openreport.admin.service.impl;
 
-import com.alibaba.fastjson.JSON;
 import com.openreport.admin.dto.TemplateEditLockInfo;
 import com.openreport.admin.service.TemplateEditLockService;
 import com.openreport.admin.utils.RedisDistributedLock;
+import com.openreport.common.result.ResultCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -24,10 +26,14 @@ public class TemplateEditLockServiceImpl implements TemplateEditLockService {
         return TEMPLATE_LOCK_KEY_PREFIX + templateId;
     }
 
+    private String buildInfoKey(Long templateId) {
+        return TEMPLATE_LOCK_INFO_PREFIX + templateId;
+    }
+
     @Override
     public TemplateEditLockInfo acquireLock(Long templateId, Long userId, String userName) {
         String lockKey = buildLockKey(templateId);
-        String lockToken = UUID.randomUUID().toString().replace("-", "");
+        String infoKey = buildInfoKey(templateId);
 
         TemplateEditLockInfo existingLock = getLockInfo(templateId);
         if (existingLock != null) {
@@ -39,23 +45,31 @@ public class TemplateEditLockServiceImpl implements TemplateEditLockService {
             return null;
         }
 
+        String lockToken = UUID.randomUUID().toString().replace("-", "");
         long lockTime = System.currentTimeMillis();
         long expireTime = lockTime + DEFAULT_LOCK_EXPIRE_SECONDS * 1000;
 
-        TemplateEditLockInfo lockInfo = TemplateEditLockInfo.builder()
-                .templateId(templateId)
-                .userId(userId)
-                .userName(userName)
-                .lockTime(lockTime)
-                .expireTime(expireTime)
-                .lockToken(lockToken)
-                .build();
-
-        String lockValue = JSON.toJSONString(lockInfo);
-        boolean locked = distributedLock.tryLock(lockKey, lockValue, DEFAULT_LOCK_EXPIRE_SECONDS, TimeUnit.SECONDS);
+        boolean locked = distributedLock.tryLock(lockKey, lockToken, DEFAULT_LOCK_EXPIRE_SECONDS, TimeUnit.SECONDS);
 
         if (locked) {
-            return lockInfo;
+            Map<String, Object> infoMap = new HashMap<>();
+            infoMap.put("templateId", String.valueOf(templateId));
+            infoMap.put("userId", String.valueOf(userId));
+            infoMap.put("userName", userName);
+            infoMap.put("lockTime", String.valueOf(lockTime));
+            infoMap.put("expireTime", String.valueOf(expireTime));
+            infoMap.put("lockToken", lockToken);
+            redisTemplate.opsForHash().putAll(infoKey, infoMap);
+            redisTemplate.expire(infoKey, DEFAULT_LOCK_EXPIRE_SECONDS, TimeUnit.SECONDS);
+
+            return TemplateEditLockInfo.builder()
+                    .templateId(templateId)
+                    .userId(userId)
+                    .userName(userName)
+                    .lockTime(lockTime)
+                    .expireTime(expireTime)
+                    .lockToken(lockToken)
+                    .build();
         }
 
         return getLockInfo(templateId);
@@ -64,51 +78,63 @@ public class TemplateEditLockServiceImpl implements TemplateEditLockService {
     @Override
     public boolean releaseLock(Long templateId, Long userId, String lockToken) {
         String lockKey = buildLockKey(templateId);
-        TemplateEditLockInfo lockInfo = getLockInfo(templateId);
-        if (lockInfo == null) {
-            return true;
-        }
-        if (!lockInfo.getUserId().equals(userId) || !lockInfo.getLockToken().equals(lockToken)) {
+        String infoKey = buildInfoKey(templateId);
+
+        if (!isLockOwner(templateId, userId, lockToken)) {
             return false;
         }
-        String lockValue = JSON.toJSONString(lockInfo);
-        return distributedLock.unlock(lockKey, lockValue);
+
+        boolean unlocked = distributedLock.unlock(lockKey, lockToken);
+        if (unlocked) {
+            redisTemplate.delete(infoKey);
+        }
+        return unlocked;
     }
 
     @Override
     public boolean renewLock(Long templateId, Long userId, String lockToken) {
         String lockKey = buildLockKey(templateId);
-        TemplateEditLockInfo lockInfo = getLockInfo(templateId);
-        if (lockInfo == null) {
+        String infoKey = buildInfoKey(templateId);
+
+        if (!isLockOwner(templateId, userId, lockToken)) {
             return false;
         }
-        if (!lockInfo.getUserId().equals(userId) || !lockInfo.getLockToken().equals(lockToken)) {
-            return false;
-        }
-        String lockValue = JSON.toJSONString(lockInfo);
-        boolean renewed = distributedLock.renew(lockKey, lockValue, DEFAULT_LOCK_EXPIRE_SECONDS, TimeUnit.SECONDS);
+
+        boolean renewed = distributedLock.renew(lockKey, lockToken, DEFAULT_LOCK_EXPIRE_SECONDS, TimeUnit.SECONDS);
         if (renewed) {
-            lockInfo.setExpireTime(System.currentTimeMillis() + DEFAULT_LOCK_EXPIRE_SECONDS * 1000);
-            redisTemplate.opsForValue().set(lockKey, JSON.toJSONString(lockInfo),
-                    DEFAULT_LOCK_EXPIRE_SECONDS, TimeUnit.SECONDS);
+            long expireTime = System.currentTimeMillis() + DEFAULT_LOCK_EXPIRE_SECONDS * 1000;
+            Map<String, Object> infoMap = new HashMap<>();
+            infoMap.put("expireTime", String.valueOf(expireTime));
+            redisTemplate.opsForHash().putAll(infoKey, infoMap);
+            redisTemplate.expire(infoKey, DEFAULT_LOCK_EXPIRE_SECONDS, TimeUnit.SECONDS);
         }
         return renewed;
     }
 
     @Override
     public TemplateEditLockInfo getLockInfo(Long templateId) {
-        String lockKey = buildLockKey(templateId);
-        Object value = distributedLock.getLockValue(lockKey);
-        if (value == null) {
+        String infoKey = buildInfoKey(templateId);
+        Map<Object, Object> entries = redisTemplate.opsForHash().entries(infoKey);
+        if (entries == null || entries.isEmpty()) {
             return null;
         }
+
         try {
-            TemplateEditLockInfo lockInfo = JSON.parseObject(value.toString(), TemplateEditLockInfo.class);
-            Long expire = distributedLock.getLockExpire(lockKey);
-            if (expire != null && expire > 0) {
-                lockInfo.setExpireTime(System.currentTimeMillis() + expire);
-            }
-            return lockInfo;
+            Long tplId = entries.get("templateId") != null ? Long.valueOf(entries.get("templateId").toString()) : null;
+            Long uid = entries.get("userId") != null ? Long.valueOf(entries.get("userId").toString()) : null;
+            String uname = entries.get("userName") != null ? entries.get("userName").toString() : null;
+            Long ltime = entries.get("lockTime") != null ? Long.valueOf(entries.get("lockTime").toString()) : null;
+            Long etime = entries.get("expireTime") != null ? Long.valueOf(entries.get("expireTime").toString()) : null;
+            String token = entries.get("lockToken") != null ? entries.get("lockToken").toString() : null;
+
+            return TemplateEditLockInfo.builder()
+                    .templateId(tplId)
+                    .userId(uid)
+                    .userName(uname)
+                    .lockTime(ltime)
+                    .expireTime(etime)
+                    .lockToken(token)
+                    .build();
         } catch (Exception e) {
             return null;
         }
@@ -116,10 +142,46 @@ public class TemplateEditLockServiceImpl implements TemplateEditLockService {
 
     @Override
     public boolean isLockOwner(Long templateId, Long userId, String lockToken) {
+        if (lockToken == null || lockToken.trim().isEmpty()) {
+            return false;
+        }
         TemplateEditLockInfo lockInfo = getLockInfo(templateId);
         if (lockInfo == null) {
+            return false;
+        }
+        return lockInfo.getUserId().equals(userId) && lockToken.equals(lockInfo.getLockToken());
+    }
+
+    @Override
+    public boolean isLocked(Long templateId) {
+        String lockKey = buildLockKey(templateId);
+        return distributedLock.getLockValue(lockKey) != null;
+    }
+
+    @Override
+    public boolean checkLockOrThrow(Long templateId, Long userId, String lockToken) {
+        if (templateId == null) {
             return true;
         }
-        return lockInfo.getUserId().equals(userId) && lockInfo.getLockToken().equals(lockToken);
+
+        if (lockToken == null || lockToken.trim().isEmpty()) {
+            TemplateEditLockInfo lockInfo = getLockInfo(templateId);
+            if (lockInfo != null) {
+                throw new RuntimeException(ResultCode.TEMPLATE_LOCKED.getCode() + ":" +
+                        lockInfo.getUserName() + "正在编辑该模板，请稍后再试");
+            }
+            return true;
+        }
+
+        if (!isLockOwner(templateId, userId, lockToken)) {
+            TemplateEditLockInfo lockInfo = getLockInfo(templateId);
+            if (lockInfo != null) {
+                throw new RuntimeException(ResultCode.TEMPLATE_LOCKED.getCode() + ":" +
+                        lockInfo.getUserName() + "正在编辑该模板，请稍后再试");
+            }
+            throw new RuntimeException(ResultCode.TEMPLATE_LOCK_NOT_OWNER.getMessage());
+        }
+
+        return true;
     }
 }
