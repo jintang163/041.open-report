@@ -3,11 +3,14 @@ package com.openreport.admin.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.openreport.admin.dto.TemplateEditLockInfo;
 import com.openreport.admin.entity.ReportTemplate;
 import com.openreport.admin.mapper.ReportTemplateMapper;
 import com.openreport.admin.service.ReportTemplateService;
 import com.openreport.admin.service.ReportTemplateSnapshotService;
+import com.openreport.admin.service.TemplateEditLockService;
 import com.openreport.common.enums.ReportStatusEnum;
+import com.openreport.common.result.ResultCode;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -25,6 +28,9 @@ public class ReportTemplateServiceImpl extends ServiceImpl<ReportTemplateMapper,
 
     @Autowired
     private com.openreport.admin.websocket.WebSocketPushService pushService;
+
+    @Autowired
+    private TemplateEditLockService templateEditLockService;
 
     @Override
     public Page<ReportTemplate> pageList(Integer pageNum, Integer pageSize, String templateName, Integer templateType) {
@@ -128,5 +134,48 @@ public class ReportTemplateServiceImpl extends ServiceImpl<ReportTemplateMapper,
         pushService.pushTemplateChange(template, isNew ? "INSERT" : "UPDATE");
 
         return template;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ReportTemplate saveDraftWithLock(ReportTemplate template, Long userId, String userName, String lockToken) {
+        if (template.getId() != null) {
+            boolean isOwner = templateEditLockService.isLockOwner(template.getId(), userId, lockToken);
+            if (!isOwner) {
+                TemplateEditLockInfo lockInfo = templateEditLockService.getLockInfo(template.getId());
+                if (lockInfo != null) {
+                    throw new RuntimeException(ResultCode.TEMPLATE_LOCKED.getCode() + ":" +
+                            lockInfo.getUserName() + "正在编辑该模板，请稍后再试");
+                } else {
+                    throw new RuntimeException(ResultCode.TEMPLATE_LOCK_NOT_OWNER.getMessage());
+                }
+            }
+            templateEditLockService.renewLock(template.getId(), userId, lockToken);
+        }
+        return saveDraft(template, userId, userName);
+    }
+
+    @Override
+    public TemplateEditLockInfo enterEdit(Long templateId, Long userId, String userName) {
+        ReportTemplate template = baseMapper.selectById(templateId);
+        if (template == null) {
+            throw new RuntimeException(ResultCode.DATA_NOT_FOUND.getMessage());
+        }
+        return templateEditLockService.acquireLock(templateId, userId, userName);
+    }
+
+    @Override
+    public boolean leaveEdit(Long templateId, Long userId, String lockToken) {
+        return templateEditLockService.releaseLock(templateId, userId, lockToken);
+    }
+
+    @Override
+    public boolean heartbeat(Long templateId, Long userId, String lockToken) {
+        return templateEditLockService.renewLock(templateId, userId, lockToken);
+    }
+
+    @Override
+    public TemplateEditLockInfo getLockStatus(Long templateId) {
+        return templateEditLockService.getLockInfo(templateId);
     }
 }

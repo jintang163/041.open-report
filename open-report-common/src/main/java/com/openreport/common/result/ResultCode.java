@@ -30,7 +30,11 @@ public enum ResultCode {
     DATA_SOURCE_NOT_FOUND(3002, "数据源不存在"),
     REPORT_NOT_FOUND(3003, "报表不存在"),
     REPORT_EXECUTE_ERROR(3004, "报表执行失败"),
-    REPORT_PUBLISH_ERROR(3005, "报表发布失败");
+    REPORT_PUBLISH_ERROR(3005, "报表发布失败"),
+
+    TEMPLATE_LOCKED(4001, "模板正在被编辑"),
+    TEMPLATE_LOCK_ACQUIRE_FAILED(4002, "获取编辑锁失败"),
+    TEMPLATE_LOCK_NOT_OWNER(4003, "您不是当前编辑者，无法操作");
 
     private final Integer code;
     private final String message;
