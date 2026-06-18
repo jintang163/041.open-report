@@ -26,6 +26,21 @@ public interface ReportEngineService {
 
     List<Map<String, Object>> executeQuery(String dataSourceId, String sql, Map<String, Object> parameters);
 
+    CalciteQueryExecutor.QueryPageResult executeQueryPage(String dataSourceId, String sql, Map<String, Object> parameters,
+                                                           int pageNum, int pageSize);
+
+    void executeQueryStreaming(String dataSourceId, String sql, Map<String, Object> parameters,
+                                CalciteQueryExecutor.RowCallback rowCallback);
+
+    void executeQueryBatch(String dataSourceId, String sql, Map<String, Object> parameters,
+                            int batchSize, CalciteQueryExecutor.BatchCallback batchCallback);
+
+    CalciteQueryExecutor.QueryPageResult queryDataSetPage(String templateJson, String dataSetId,
+                                                           Map<String, Object> parameters,
+                                                           int pageNum, int pageSize);
+
+    byte[] exportReportStreaming(String templateJson, Map<String, Object> parameters, String outputType);
+
     Map<String, Object> executeSingleRow(String dataSourceId, String sql, Map<String, Object> parameters);
 
     Object executeSingleValue(String dataSourceId, String sql, Map<String, Object> parameters);

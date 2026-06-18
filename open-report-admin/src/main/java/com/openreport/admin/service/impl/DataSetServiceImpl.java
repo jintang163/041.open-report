@@ -132,6 +132,108 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
     }
 
     @Override
+    public Map<String, Object> pagePreviewData(Long dataSetId, Map<String, Object> params, int pageNum, int pageSize) {
+        Map<String, Object> result = new HashMap<>();
+        DataSet dataSet = getById(dataSetId);
+        if (dataSet == null) {
+            result.put("success", false);
+            result.put("message", "数据集不存在");
+            return result;
+        }
+        DataSourceConfig dsConfig = dataSourceConfigService.getById(dataSet.getDsId());
+        if (dsConfig == null) {
+            result.put("success", false);
+            result.put("message", "数据源不存在");
+            return result;
+        }
+        String sql = dataSet.getSqlText();
+        if (StringUtils.isBlank(sql)) {
+            result.put("success", false);
+            result.put("message", "SQL不能为空");
+            return result;
+        }
+
+        String countSql = "SELECT COUNT(*) FROM (" + sql + ") t_cnt";
+        String pageSql = sql + " LIMIT " + pageSize + " OFFSET " + ((pageNum - 1) * pageSize);
+
+        Connection connection = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            Class.forName(dsConfig.getDriverClass());
+            connection = DriverManager.getConnection(dsConfig.getJdbcUrl(), dsConfig.getUsername(), dsConfig.getPassword());
+
+            long total = 0;
+            try {
+                ps = connection.prepareStatement(countSql);
+                setParams(ps, sql, params);
+                rs = ps.executeQuery();
+                if (rs.next()) {
+                    total = rs.getLong(1);
+                }
+                rs.close();
+                ps.close();
+            } catch (Exception e) {
+                log.warn("Count query failed, using -1 as total", e);
+                total = -1;
+            }
+
+            ps = connection.prepareStatement(pageSql);
+            setParams(ps, sql, params);
+            rs = ps.executeQuery();
+            ResultSetMetaData metaData = rs.getMetaData();
+            int columnCount = metaData.getColumnCount();
+
+            List<Map<String, Object>> columns = new ArrayList<>();
+            for (int i = 1; i <= columnCount; i++) {
+                Map<String, Object> column = new HashMap<>();
+                column.put("name", metaData.getColumnLabel(i));
+                column.put("type", metaData.getColumnTypeName(i));
+                columns.add(column);
+            }
+
+            List<Map<String, Object>> rows = new ArrayList<>();
+            while (rs.next()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                for (int i = 1; i <= columnCount; i++) {
+                    row.put(metaData.getColumnLabel(i), rs.getObject(i));
+                }
+                rows.add(row);
+            }
+
+            result.put("success", true);
+            result.put("columns", columns);
+            result.put("rows", rows);
+            result.put("total", total);
+            result.put("pageNum", pageNum);
+            result.put("pageSize", pageSize);
+            result.put("hasMore", total == -1 ? rows.size() >= pageSize : (long) pageNum * pageSize < total);
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "执行SQL失败: " + e.getMessage());
+        } finally {
+            closeResources(rs, ps, connection);
+        }
+        return result;
+    }
+
+    private void setParams(PreparedStatement ps, String sql, Map<String, Object> params) throws SQLException {
+        if (params == null || params.isEmpty()) {
+            return;
+        }
+        List<Map<String, Object>> paramList = parseParamsFromSql(sql);
+        int index = 1;
+        for (Map<String, Object> param : paramList) {
+            String paramName = param.get("name").toString();
+            if (params.containsKey(paramName)) {
+                ps.setObject(index++, params.get(paramName));
+            }
+        }
+    }
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DataSetServiceImpl.class);
+
+    @Override
     public Map<String, Object> parseSql(String sqlText) {
         Map<String, Object> result = new HashMap<>();
         List<Map<String, Object>> params = parseParamsFromSql(sqlText);

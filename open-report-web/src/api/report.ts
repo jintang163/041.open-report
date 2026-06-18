@@ -41,6 +41,20 @@ export const executeReport = (id: number, params?: Record<string, any>): Promise
   return post(`/report/execute/${id}`, params)
 }
 
+export const getReportDataPage = (id: number, params?: Record<string, any>, pageNum = 1, pageSize = 100, dataSetId?: string): Promise<{
+  columns?: any[]
+  rows?: any[]
+  total?: number
+  pageNum?: number
+  pageSize?: number
+  hasMore?: boolean
+  success?: boolean
+}> => {
+  return post(`/report-execute/report-data-page/${id}`, params, {
+    params: { pageNum, pageSize, dataSetId }
+  })
+}
+
 export const exportReportExcel = (id: number, params?: Record<string, any>): Promise<Blob> => {
   return post(`/report/export/${id}/excel`, params, { responseType: 'blob' })
 }

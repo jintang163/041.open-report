@@ -93,6 +93,121 @@ public class ReportEngineServiceImpl implements ReportEngineService {
     }
 
     @Override
+    public CalciteQueryExecutor.QueryPageResult executeQueryPage(String dataSourceId, String sql, Map<String, Object> parameters,
+                                                                  int pageNum, int pageSize) {
+        log.info("Executing page query on dataSource: {}, pageNum: {}, pageSize: {}", dataSourceId, pageNum, pageSize);
+        return calciteQueryExecutor.executeQueryPage(dataSourceId, sql, parameters, pageNum, pageSize);
+    }
+
+    @Override
+    public void executeQueryStreaming(String dataSourceId, String sql, Map<String, Object> parameters,
+                                       CalciteQueryExecutor.RowCallback rowCallback) {
+        log.info("Executing streaming query on dataSource: {}", dataSourceId);
+        calciteQueryExecutor.executeQueryStreaming(dataSourceId, sql, parameters, rowCallback);
+    }
+
+    @Override
+    public void executeQueryBatch(String dataSourceId, String sql, Map<String, Object> parameters,
+                                   int batchSize, CalciteQueryExecutor.BatchCallback batchCallback) {
+        log.info("Executing batch query on dataSource: {}, batchSize: {}", dataSourceId, batchSize);
+        calciteQueryExecutor.executeQueryBatch(dataSourceId, sql, parameters, batchSize, batchCallback);
+    }
+
+    @Override
+    public CalciteQueryExecutor.QueryPageResult queryDataSetPage(String templateJson, String dataSetId,
+                                                                  Map<String, Object> parameters,
+                                                                  int pageNum, int pageSize) {
+        log.info("Query data set page, dataSetId: {}, pageNum: {}, pageSize: {}", dataSetId, pageNum, pageSize);
+        ReportTemplate template = reportTemplateParser.parse(templateJson);
+        if (template.getDataSets() == null || template.getDataSets().isEmpty()) {
+            CalciteQueryExecutor.QueryPageResult result = new CalciteQueryExecutor.QueryPageResult();
+            result.setTotal(0);
+            result.setPageNum(pageNum);
+            result.setPageSize(pageSize);
+            result.setList(new java.util.ArrayList<>());
+            return result;
+        }
+
+        com.openreport.engine.model.DataSetBind dataSetBind = null;
+        for (com.openreport.engine.model.DataSetBind bind : template.getDataSets()) {
+            if (bind.getDataSetId().equals(dataSetId)) {
+                dataSetBind = bind;
+                break;
+            }
+        }
+        if (dataSetBind == null) {
+            // 返回第一个数据集
+            dataSetBind = template.getDataSets().get(0);
+        }
+
+        Map<String, Object> queryParams = new java.util.HashMap<>();
+        if (dataSetBind.getParameters() != null) {
+            queryParams.putAll(dataSetBind.getParameters());
+        }
+        if (parameters != null) {
+            queryParams.putAll(parameters);
+        }
+
+        return calciteQueryExecutor.executeQueryPage(
+                dataSetBind.getDataSourceId(),
+                dataSetBind.getSql(),
+                queryParams,
+                pageNum,
+                pageSize
+        );
+    }
+
+    @Override
+    public byte[] exportReportStreaming(String templateJson, Map<String, Object> parameters, String outputType) {
+        log.info("Export report streaming, outputType: {}", outputType);
+        ReportTemplate template = reportTemplateParser.parse(templateJson);
+
+        if ("PDF".equalsIgnoreCase(outputType)) {
+            return pdfExporter.exportFromRenderResult(reportRenderer.render(template, parameters));
+        }
+
+        if (template.getDataSets() == null || template.getDataSets().isEmpty()) {
+            return excelExporter.exportFromRenderResult(reportRenderer.render(template, parameters));
+        }
+
+        com.openreport.engine.model.DataSetBind dataSetBind = template.getDataSets().get(0);
+        Map<String, Object> queryParams = new java.util.HashMap<>();
+        if (dataSetBind.getParameters() != null) {
+            queryParams.putAll(dataSetBind.getParameters());
+        }
+        if (parameters != null) {
+            queryParams.putAll(parameters);
+        }
+
+        final String dataSourceId = dataSetBind.getDataSourceId();
+        final String sql = dataSetBind.getSql();
+        final String sheetName = dataSetBind.getDataSetName() != null
+                ? dataSetBind.getDataSetName() : "Data";
+
+        final java.util.concurrent.atomic.AtomicReference<byte[]> resultRef = new java.util.concurrent.atomic.AtomicReference<>();
+        final java.util.concurrent.atomic.AtomicBoolean firstBatch = new java.util.concurrent.atomic.AtomicBoolean(true);
+        final java.util.concurrent.atomic.AtomicReference<ExcelExporter.StreamingWriter> writerRef =
+                new java.util.concurrent.atomic.AtomicReference<>();
+
+        byte[] result = excelExporter.exportDataSetStreaming(
+                sheetName,
+                0,
+                null,
+                writer -> {
+                    writerRef.set(writer);
+                    calciteQueryExecutor.executeQueryBatch(dataSourceId, sql, queryParams, 1000,
+                            (batch, batchIndex, totalCount) -> {
+                                if (batch != null && !batch.isEmpty()) {
+                                    writer.writeBatch(batch);
+                                }
+                            });
+                }
+        );
+
+        return result;
+    }
+
+    @Override
     public Map<String, Object> executeSingleRow(String dataSourceId, String sql, Map<String, Object> parameters) {
         return calciteQueryExecutor.executeSingleRow(dataSourceId, sql, parameters);
     }

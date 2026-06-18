@@ -121,4 +121,78 @@ public class ReportExecuteController {
         Map<String, Object> result = dataSetService.previewData(dataSetId, params, limit);
         return Result.success(result);
     }
+
+    @ApiOperation("分页查询数据集预览数据（大数据量用）")
+    @PostMapping("/dataset-page/{dataSetId}")
+    public Result<Map<String, Object>> pageDataSet(
+            @PathVariable Long dataSetId,
+            @RequestBody(required = false) Map<String, Object> params,
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "100") Integer pageSize) {
+        DataSet dataSet = dataSetService.getById(dataSetId);
+        if (dataSet == null) {
+            return Result.failure(ResultCode.DATA_NOT_FOUND);
+        }
+        Map<String, Object> result = dataSetService.pagePreviewData(dataSetId, params, pageNum, pageSize);
+        return Result.success(result);
+    }
+
+    @ApiOperation("分页查询报表数据（大数据量滚动加载用）")
+    @PostMapping("/report-data-page/{templateId}")
+    public Result<Map<String, Object>> pageReportData(
+            @PathVariable Long templateId,
+            @RequestBody(required = false) Map<String, Object> params,
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "100") Integer pageSize,
+            @RequestParam(required = false) String dataSetId) {
+        ReportTemplate template = reportTemplateService.getById(templateId);
+        if (template == null) {
+            return Result.failure(ResultCode.DATA_NOT_FOUND, "报表模板不存在");
+        }
+        if (template.getDataSetBind() == null) {
+            Map<String, Object> empty = new HashMap<>();
+            empty.put("columns", new ArrayList<>());
+            empty.put("rows", new ArrayList<>());
+            empty.put("total", 0);
+            empty.put("pageNum", pageNum);
+            empty.put("pageSize", pageSize);
+            empty.put("hasMore", false);
+            return Result.success(empty);
+        }
+        try {
+            List<Map<String, Object>> bindings = JSON.parseObject(template.getDataSetBind(),
+                    new TypeReference<List<Map<String, Object>>>() {});
+            if (bindings.isEmpty()) {
+                Map<String, Object> empty = new HashMap<>();
+                empty.put("columns", new ArrayList<>());
+                empty.put("rows", new ArrayList<>());
+                empty.put("total", 0);
+                empty.put("hasMore", false);
+                return Result.success(empty);
+            }
+
+            Map<String, Object> targetBind = null;
+            if (dataSetId != null && !dataSetId.isEmpty()) {
+                for (Map<String, Object> bind : bindings) {
+                    if (dataSetId.equals(bind.get("bindName")) || dataSetId.equals(String.valueOf(bind.get("dataSetId")))) {
+                        targetBind = bind;
+                        break;
+                    }
+                }
+            }
+            if (targetBind == null) {
+                targetBind = bindings.get(0);
+            }
+
+            Long dsId = Long.valueOf(targetBind.get("dataSetId").toString());
+            String bindName = targetBind.get("bindName") != null ? targetBind.get("bindName").toString() : "dataSet" + dsId;
+
+            Map<String, Object> pageResult = dataSetService.pagePreviewData(dsId, params, pageNum, pageSize);
+            pageResult.put("bindName", bindName);
+            pageResult.put("dataSetId", dsId);
+            return Result.success(pageResult);
+        } catch (Exception e) {
+            return Result.failure(ResultCode.INTERNAL_SERVER_ERROR, "分页查询失败: " + e.getMessage());
+        }
+    }
 }

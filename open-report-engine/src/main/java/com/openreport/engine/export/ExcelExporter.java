@@ -1,20 +1,24 @@
 package com.openreport.engine.export;
 
 import com.openreport.common.exception.BusinessException;
+import com.openreport.engine.calcite.CalciteQueryExecutor;
 import com.openreport.engine.model.ReportCell;
 import com.openreport.engine.model.ReportTemplate;
 import com.openreport.engine.model.RenderResult;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.jxls.common.Context;
 import org.jxls.util.JxlsHelper;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 @Slf4j
 @Component
@@ -198,5 +202,117 @@ public class ExcelExporter {
         style.setBorderRight(BorderStyle.THIN);
         style.setVerticalAlignment(VerticalAlignment.CENTER);
         return style;
+    }
+
+    public byte[] exportDataSetStreaming(String sheetName, int totalRowEstimate,
+                                          List<String> headers, Consumer<StreamingWriter> writerConsumer) {
+        SXSSFWorkbook workbook = new SXSSFWorkbook(100);
+        workbook.setCompressTempFiles(true);
+        try {
+            Sheet sheet = workbook.createSheet(sheetName == null ? "Data" : sheetName);
+            CellStyle headerStyle = createHeaderStyle(workbook);
+            CellStyle dataStyle = createDataStyle(workbook);
+
+            int rowIndex = 0;
+            if (headers != null && !headers.isEmpty()) {
+                Row headerRow = sheet.createRow(rowIndex++);
+                for (int i = 0; i < headers.size(); i++) {
+                    Cell cell = headerRow.createCell(i);
+                    cell.setCellValue(headers.get(i));
+                    cell.setCellStyle(headerStyle);
+                }
+            }
+
+            final int startRow = rowIndex;
+            StreamingWriter writer = new StreamingWriter(sheet, dataStyle, startRow);
+            writerConsumer.accept(writer);
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            workbook.write(outputStream);
+            return outputStream.toByteArray();
+        } catch (IOException e) {
+            log.error("Failed to export streaming Excel", e);
+            throw new BusinessException("Failed to export streaming Excel: " + e.getMessage());
+        } finally {
+            workbook.dispose();
+            try {
+                workbook.close();
+            } catch (IOException ignored) {
+            }
+        }
+    }
+
+    public static class StreamingWriter {
+        private final Sheet sheet;
+        private final CellStyle dataStyle;
+        private int rowIndex;
+        private int totalRows;
+
+        public StreamingWriter(Sheet sheet, CellStyle dataStyle, int startRow) {
+            this.sheet = sheet;
+            this.dataStyle = dataStyle;
+            this.rowIndex = startRow;
+            this.totalRows = 0;
+        }
+
+        public void writeRow(Map<String, Object> rowData) {
+            if (rowData == null) return;
+            writeRow(new ArrayList<>(rowData.values()));
+        }
+
+        public void writeRow(List<?> values) {
+            if (values == null) return;
+            Row row = sheet.createRow(rowIndex++);
+            for (int i = 0; i < values.size(); i++) {
+                Cell cell = row.createCell(i);
+                setCellValue(cell, values.get(i));
+                cell.setCellStyle(dataStyle);
+            }
+            totalRows++;
+        }
+
+        public void writeBatch(List<Map<String, Object>> batch) {
+            if (batch == null || batch.isEmpty()) return;
+            for (Map<String, Object> row : batch) {
+                writeRow(row);
+            }
+        }
+
+        public int getTotalRows() {
+            return totalRows;
+        }
+    }
+
+    public byte[] exportDataSetBatch(String sheetName, CalciteQueryExecutor.BatchCallback dataProvider) {
+        return exportDataSetBatch(sheetName, 1000, dataProvider);
+    }
+
+    public byte[] exportDataSetBatch(String sheetName, int batchSize,
+                                      CalciteQueryExecutor.BatchCallback dataProvider) {
+        SXSSFWorkbook workbook = new SXSSFWorkbook(batchSize);
+        workbook.setCompressTempFiles(true);
+        try {
+            Sheet sheet = workbook.createSheet(sheetName == null ? "Data" : sheetName);
+            CellStyle headerStyle = createHeaderStyle(workbook);
+            CellStyle dataStyle = createDataStyle(workbook);
+
+            final boolean[] headerWritten = {false};
+            final int[] rowIndex = {0};
+
+            dataProvider.onBatch(null, 0, 0);
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            workbook.write(outputStream);
+            return outputStream.toByteArray();
+        } catch (IOException e) {
+            log.error("Failed to export batch Excel", e);
+            throw new BusinessException("Failed to export batch Excel: " + e.getMessage());
+        } finally {
+            workbook.dispose();
+            try {
+                workbook.close();
+            } catch (IOException ignored) {
+            }
+        }
     }
 }
