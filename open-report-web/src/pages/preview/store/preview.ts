@@ -4,7 +4,7 @@ import { getReportParameters, executeReport, exportReportExcel, exportReportPdf,
 import { downloadBlob } from '../utils/report'
 import dayjs from 'dayjs'
 
-const VIRTUAL_SCROLL_THRESHOLD = 500
+const BIG_DATA_THRESHOLD = 100_000
 const DEFAULT_PAGE_SIZE = 200
 
 interface PreviewState {
@@ -27,6 +27,7 @@ interface PreviewState {
   hasMore: boolean
   pageLoading: boolean
   dataSetId?: string
+  bigDataThreshold: number
 
   setReportId: (id: number) => void
   setReportName: (name: string) => void
@@ -68,6 +69,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   totalRows: 0,
   hasMore: false,
   pageLoading: false,
+  bigDataThreshold: BIG_DATA_THRESHOLD,
 
   setReportId: (id: number) => set({ reportId: id }),
 
@@ -131,53 +133,60 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     const { reportId, params, paramValues } = get()
     if (!reportId) return
 
-    set({ loading: true })
+    set({ loading: true, pageMode: false, pageData: [], pageColumns: [], pageNum: 0, hasMore: false })
     try {
       const formattedParams = formatParamValue(params, paramValues)
-      const result = await executeReport(reportId, formattedParams)
+      const result: any = await executeReport(reportId, formattedParams)
       const renderResult = result as ReportRenderResult
 
-      const tables = renderResult?.tables || []
-      const firstTableRows = tables[0]?.rows || []
+      const serverPageMode = Boolean(result?.pageMode)
+      const serverThreshold = result?.bigDataThreshold ?? BIG_DATA_THRESHOLD
+      const serverPage = result?.page || {}
+      const serverTables = result?.tables || []
+      const firstTable = serverTables[0] || {}
+      const tablesRows = firstTable?.rows || []
 
-      if (firstTableRows.length >= VIRTUAL_SCROLL_THRESHOLD) {
+      if (serverPageMode) {
+        const pageColumns = serverPage?.columns && serverPage.columns.length > 0
+          ? serverPage.columns
+          : (firstTable?.columns || [])
+        const pageRows = serverPage?.rows && serverPage.rows.length > 0
+          ? serverPage.rows
+          : tablesRows
+
         set({
+          reportData: {
+            ...renderResult,
+            title: result?.title,
+            summary: result?.summary,
+            charts: result?.charts,
+            html: result?.html,
+            table: result?.table
+          },
           pageMode: true,
-          pageData: firstTableRows,
-          pageColumns: tables[0]?.columns || [],
-          pageNum: 1,
-          hasMore: true,
-          totalRows: firstTableRows.length,
-          reportData: renderResult,
-          dataSetId: undefined
+          pageData: pageRows || [],
+          pageColumns,
+          pageNum: serverPage?.pageNum || 1,
+          pageSize: serverPage?.pageSize || DEFAULT_PAGE_SIZE,
+          hasMore: Boolean(serverPage?.hasMore ?? (pageRows && pageRows.length >= (serverPage?.pageSize || DEFAULT_PAGE_SIZE))),
+          totalRows: serverPage?.total ?? firstTable?.total ?? (pageRows ? pageRows.length : 0),
+          dataSetId: serverPage?.dataSetId != null ? String(serverPage.dataSetId) : undefined,
+          bigDataThreshold: serverThreshold
         })
-
-        try {
-          const pageResult = await getReportDataPage(
-            reportId,
-            formattedParams,
-            1,
-            DEFAULT_PAGE_SIZE
-          )
-          if (pageResult?.success !== false && pageResult?.rows) {
-            set({
-              pageData: pageResult.rows,
-              pageColumns: pageResult.columns || [],
-              pageNum: 1,
-              pageSize: DEFAULT_PAGE_SIZE,
-              hasMore: pageResult.hasMore ?? pageResult.rows.length >= DEFAULT_PAGE_SIZE,
-              totalRows: pageResult.total ?? 0
-            })
-          }
-        } catch (e) {
-          console.warn('分页查询失败，使用原始数据:', e)
-        }
       } else {
         set({
-          reportData: renderResult,
+          reportData: {
+            ...renderResult,
+            title: result?.title,
+            summary: result?.summary,
+            charts: result?.charts,
+            html: result?.html,
+            table: result?.table
+          },
           pageMode: false,
           pageData: [],
-          pageColumns: []
+          pageColumns: [],
+          bigDataThreshold: serverThreshold
         })
       }
     } catch (error) {
@@ -196,7 +205,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     set({ pageLoading: true })
     try {
       const formattedParams = formatParamValue(params, paramValues)
-      const result = await getReportDataPage(
+      const result: any = await getReportDataPage(
         reportId,
         formattedParams,
         nextPage,
@@ -210,7 +219,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
           pageNum: nextPage,
           hasMore: result.hasMore ?? result.rows.length >= pageSize,
           totalRows: result.total ?? pageData.length + result.rows.length,
-          pageColumns: result.columns || get().pageColumns
+          pageColumns: result.columns && result.columns.length > 0 ? result.columns : get().pageColumns
         })
       }
     } catch (error) {
@@ -270,7 +279,8 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       pageNum: 0,
       hasMore: false,
       totalRows: 0,
-      pageLoading: false
+      pageLoading: false,
+      bigDataThreshold: BIG_DATA_THRESHOLD
     })
   }
 }))

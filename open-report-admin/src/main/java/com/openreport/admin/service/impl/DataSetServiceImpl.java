@@ -231,6 +231,108 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
         }
     }
 
+    @Override
+    public long countData(Long dataSetId, Map<String, Object> params) {
+        DataSet dataSet = getById(dataSetId);
+        if (dataSet == null) {
+            return -1L;
+        }
+        DataSourceConfig dsConfig = dataSourceConfigService.getById(dataSet.getDsId());
+        if (dsConfig == null) {
+            return -1L;
+        }
+        String sql = dataSet.getSqlText();
+        if (StringUtils.isBlank(sql)) {
+            return -1L;
+        }
+        String countSql = "SELECT COUNT(*) FROM (" + sql + ") t_cnt";
+        Connection connection = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            Class.forName(dsConfig.getDriverClass());
+            connection = DriverManager.getConnection(dsConfig.getJdbcUrl(), dsConfig.getUsername(), dsConfig.getPassword());
+            ps = connection.prepareStatement(countSql);
+            setParams(ps, sql, params);
+            rs = ps.executeQuery();
+            if (rs.next()) {
+                return rs.getLong(1);
+            }
+        } catch (Exception e) {
+            log.warn("Count data failed for dataSetId: {}", dataSetId, e);
+        } finally {
+            closeResources(rs, ps, connection);
+        }
+        return -1L;
+    }
+
+    @Override
+    public Map<String, Object> previewDataWithCount(Long dataSetId, Map<String, Object> params, Integer limit) {
+        Map<String, Object> result = previewData(dataSetId, params, limit);
+        long total = countData(dataSetId, params);
+        result.put("total", total);
+        return result;
+    }
+
+    @Override
+    public void streamBatchData(Long dataSetId, Map<String, Object> params, int batchSize,
+                                java.util.function.Consumer<java.util.List<Map<String, Object>>> batchCallback) {
+        DataSet dataSet = getById(dataSetId);
+        if (dataSet == null || batchCallback == null) {
+            return;
+        }
+        DataSourceConfig dsConfig = dataSourceConfigService.getById(dataSet.getDsId());
+        if (dsConfig == null) {
+            return;
+        }
+        String sql = dataSet.getSqlText();
+        if (StringUtils.isBlank(sql)) {
+            return;
+        }
+        Connection connection = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            Class.forName(dsConfig.getDriverClass());
+            connection = DriverManager.getConnection(dsConfig.getJdbcUrl(), dsConfig.getUsername(), dsConfig.getPassword());
+            ps = connection.prepareStatement(sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+            try {
+                ps.setFetchSize(Integer.MIN_VALUE);
+            } catch (Exception ignored) {
+            }
+            setParams(ps, sql, params);
+            rs = ps.executeQuery();
+            ResultSetMetaData metaData = rs.getMetaData();
+            int columnCount = metaData.getColumnCount();
+            String[] columnLabels = new String[columnCount];
+            for (int i = 1; i <= columnCount; i++) {
+                columnLabels[i - 1] = metaData.getColumnLabel(i);
+            }
+            java.util.List<Map<String, Object>> batch = new ArrayList<>(batchSize);
+            int count = 0;
+            while (rs.next()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                for (int i = 0; i < columnCount; i++) {
+                    row.put(columnLabels[i], rs.getObject(i + 1));
+                }
+                batch.add(row);
+                count++;
+                if (count >= batchSize) {
+                    batchCallback.accept(new ArrayList<>(batch));
+                    batch.clear();
+                    count = 0;
+                }
+            }
+            if (!batch.isEmpty()) {
+                batchCallback.accept(batch);
+            }
+        } catch (Exception e) {
+            log.error("Stream batch data failed for dataSetId: {}", dataSetId, e);
+        } finally {
+            closeResources(rs, ps, connection);
+        }
+    }
+
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DataSetServiceImpl.class);
 
     @Override

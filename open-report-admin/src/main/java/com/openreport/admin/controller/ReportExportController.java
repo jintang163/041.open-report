@@ -67,7 +67,7 @@ public class ReportExportController {
         }
 
         Map<String, Object> exportData = collectExportData(template, extractParams(request));
-        byte[] bytes = buildExcelBytes(template, exportData);
+        byte[] bytes = buildExcelBytes(template, exportData, extractParams(request));
 
         String fileName = encodeFileName(template.getTemplateName() + ".xlsx");
         return ResponseEntity.ok()
@@ -94,7 +94,7 @@ public class ReportExportController {
         }
 
         Map<String, Object> exportData = collectExportData(template, extractParams(request));
-        byte[] bytes = buildPdfBytes(template, exportData);
+        byte[] bytes = buildPdfBytes(template, exportData, extractParams(request));
 
         String fileName = encodeFileName(template.getTemplateName() + ".pdf");
         return ResponseEntity.ok()
@@ -173,6 +173,18 @@ public class ReportExportController {
                 item.put("fileName", fileName);
                 item.put("downloadUrl", downloadUrl);
                 item.put("exportData", exportData);
+
+                try {
+                    if ("excel".equalsIgnoreCase(exportType)) {
+                        byte[] bytes = buildExcelBytes(template, exportData, batchRequest.getParams());
+                        item.put("fileSize", bytes.length);
+                    } else if ("pdf".equalsIgnoreCase(exportType)) {
+                        byte[] bytes = buildPdfBytes(template, exportData, batchRequest.getParams());
+                        item.put("fileSize", bytes.length);
+                    }
+                } catch (Exception e) {
+                    log.warn("Batch export pre-build failed, fallback to link only, reportId: {}", reportId, e);
+                }
             } catch (Exception e) {
                 log.error("批量导出报表失败, reportId: {}", reportId, e);
                 item.put("success", false);
@@ -183,6 +195,9 @@ public class ReportExportController {
 
         return Result.success(results);
     }
+
+    private static final long BIG_DATA_EXPORT_THRESHOLD = 100_000L;
+    private static final int EXPORT_BATCH_SIZE = 1000;
 
     private AuthResult checkAuth(String paramToken, HttpServletRequest request, Long reportId) {
         String token = resolveToken(paramToken, request);
@@ -258,8 +273,16 @@ public class ReportExportController {
                 for (Map<String, Object> binding : bindings) {
                     Long dataSetId = Long.valueOf(binding.get("dataSetId").toString());
                     String bindName = binding.get("bindName") != null ? binding.get("bindName").toString() : "dataSet" + dataSetId;
-                    Map<String, Object> previewResult = dataSetService.previewData(dataSetId, params, null);
-                    dataSetData.put(bindName, previewResult);
+                    long total = dataSetService.countData(dataSetId, params);
+                    if (total >= 0 && total > BIG_DATA_EXPORT_THRESHOLD) {
+                        Map<String, Object> sample = dataSetService.previewData(dataSetId, params, 1);
+                        sample.put("total", total);
+                        sample.put("isBigData", true);
+                        dataSetData.put(bindName, sample);
+                    } else {
+                        Map<String, Object> previewResult = dataSetService.previewDataWithCount(dataSetId, params, null);
+                        dataSetData.put(bindName, previewResult);
+                    }
                 }
             } catch (Exception e) {
                 log.error("解析数据集绑定失败", e);
@@ -268,14 +291,32 @@ public class ReportExportController {
         return dataSetData;
     }
 
-    private byte[] buildExcelBytes(ReportTemplate template, Map<String, Object> exportData) {
+    private byte[] buildExcelBytes(ReportTemplate template, Map<String, Object> exportData,
+                                   Map<String, Object> params) {
         Map<String, Object> dataSets = (Map<String, Object>) exportData.get("dataSets");
         if (dataSets != null && !dataSets.isEmpty()) {
             Map.Entry<String, Object> firstEntry = dataSets.entrySet().iterator().next();
+            String bindName = firstEntry.getKey();
             Object dataObj = firstEntry.getValue();
             if (dataObj instanceof Map) {
                 Map<String, Object> dataMap = (Map<String, Object>) dataObj;
                 Object rows = dataMap.get("rows");
+                Object totalObj = dataMap.get("total");
+                long total = -1;
+                if (totalObj instanceof Number) {
+                    total = ((Number) totalObj).longValue();
+                }
+
+                Long dataSetId = resolveDataSetId(template, bindName);
+                if (dataSetId != null && (total < 0 || total > BIG_DATA_EXPORT_THRESHOLD)) {
+                    if (total < 0) {
+                        total = dataSetService.countData(dataSetId, params);
+                    }
+                    if (total > BIG_DATA_EXPORT_THRESHOLD) {
+                        return buildExcelStreaming(template, dataSetId, params, total);
+                    }
+                }
+
                 if (rows instanceof List) {
                     List<Map<String, Object>> rowList = (List<Map<String, Object>>) rows;
                     return excelExporter.exportDataSet(template.getTemplateName(), rowList);
@@ -285,13 +326,86 @@ public class ReportExportController {
         return excelExporter.exportDataSet(template.getTemplateName(), new ArrayList<>());
     }
 
-    private byte[] buildPdfBytes(ReportTemplate template, Map<String, Object> exportData) {
+    private Long resolveDataSetId(ReportTemplate template, String bindName) {
+        if (template.getDataSetBind() == null) return null;
+        try {
+            List<Map<String, Object>> bindings = JSON.parseObject(template.getDataSetBind(),
+                    new TypeReference<List<Map<String, Object>>>() {});
+            for (Map<String, Object> b : bindings) {
+                String name = b.get("bindName") != null ? b.get("bindName").toString()
+                        : ("dataSet" + b.get("dataSetId"));
+                if (name.equals(bindName)) {
+                    return Long.valueOf(b.get("dataSetId").toString());
+                }
+            }
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    private byte[] buildExcelStreaming(ReportTemplate template, Long dataSetId,
+                                       Map<String, Object> params, long total) {
+        log.info("Streaming Excel export for reportId={}, dataSetId={}, total={}",
+                template.getId(), dataSetId, total);
+
+        final java.util.concurrent.atomic.AtomicReference<List<String>> headersRef =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        final java.util.concurrent.atomic.AtomicBoolean headerReady =
+                new java.util.concurrent.atomic.AtomicBoolean(false);
+
+        dataSetService.streamBatchData(dataSetId, params, EXPORT_BATCH_SIZE, batch -> {
+            if (!headerReady.get() && !batch.isEmpty()) {
+                headersRef.set(new ArrayList<>(batch.get(0).keySet()));
+                headerReady.set(true);
+            }
+        });
+
+        if (!headerReady.get()) {
+            headersRef.set(new ArrayList<>());
+        }
+
+        return excelExporter.exportDataSetStreaming(template.getTemplateName(),
+                (int) Math.min(total, Integer.MAX_VALUE), headersRef.get(),
+                writer -> {
+                    dataSetService.streamBatchData(dataSetId, params, EXPORT_BATCH_SIZE, writer::writeBatch);
+                });
+    }
+
+    private byte[] buildPdfBytes(ReportTemplate template, Map<String, Object> exportData,
+                                  Map<String, Object> params) {
         Map<String, Object> dataSets = (Map<String, Object>) exportData.get("dataSets");
         if (dataSets != null && !dataSets.isEmpty()) {
             Map.Entry<String, Object> firstEntry = dataSets.entrySet().iterator().next();
+            String bindName = firstEntry.getKey();
             Object dataObj = firstEntry.getValue();
             if (dataObj instanceof Map) {
                 Map<String, Object> dataMap = (Map<String, Object>) dataObj;
+                Object totalObj = dataMap.get("total");
+                long total = -1;
+                if (totalObj instanceof Number) {
+                    total = ((Number) totalObj).longValue();
+                }
+                Long dataSetId = resolveDataSetId(template, bindName);
+                if (dataSetId != null && total < 0) {
+                    total = dataSetService.countData(dataSetId, params);
+                }
+                if (total > BIG_DATA_EXPORT_THRESHOLD) {
+                    log.warn("PDF export for reportId={}, total={} exceeds threshold, using Excel streaming recommended",
+                            template.getId(), total);
+                    final List<Map<String, Object>> limitedRows = new ArrayList<>(Math.min((int) total, 10000));
+                    final int[] count = {0};
+                    dataSetService.streamBatchData(dataSetId, params, 1000, batch -> {
+                        for (Map<String, Object> row : batch) {
+                            if (count[0] < 10000) {
+                                limitedRows.add(row);
+                                count[0]++;
+                            } else {
+                                break;
+                            }
+                        }
+                    });
+                    return pdfExporter.exportDataSet(template.getTemplateName() + "(前10000行)", limitedRows);
+                }
+
                 Object rows = dataMap.get("rows");
                 if (rows instanceof List) {
                     List<Map<String, Object>> rowList = (List<Map<String, Object>>) rows;
