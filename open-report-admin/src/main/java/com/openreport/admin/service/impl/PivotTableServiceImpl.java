@@ -31,9 +31,22 @@ public class PivotTableServiceImpl implements PivotTableService {
             throw new IllegalArgumentException("交叉报表配置或数据集ID不能为空");
         }
 
-        List<Map<String, Object>> rawData = dataSetService.previewDataList(config.getDataSetId(), params);
+        DataSet dataSet = dataSetService.getById(config.getDataSetId());
+        if (dataSet == null) {
+            throw new IllegalArgumentException("数据集不存在");
+        }
 
-        return pivotTableEngine.pivotResultSet(rawData, config);
+        String baseSql = dataSet.getSqlText();
+        if (StringUtils.isBlank(baseSql)) {
+            throw new IllegalArgumentException("数据集SQL不能为空");
+        }
+
+        String groupBySql = pivotTableEngine.buildGroupBySql(baseSql, config);
+
+        List<Map<String, Object>> aggregatedData = dataSetService.executeCustomSql(
+                config.getDataSetId(), groupBySql, params);
+
+        return pivotTableEngine.pivotResultSet(aggregatedData, config);
     }
 
     @Override

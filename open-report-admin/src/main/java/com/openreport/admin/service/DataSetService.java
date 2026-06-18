@@ -26,5 +26,7 @@ public interface DataSetService extends IService<DataSet> {
 
     List<Map<String, Object>> previewDataList(Long dataSetId, Map<String, Object> params);
 
+    List<Map<String, Object>> executeCustomSql(Long dataSetId, String customSql, Map<String, Object> params);
+
     Map<String, Object> parseSql(String sqlText);
 }

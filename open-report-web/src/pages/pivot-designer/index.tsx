@@ -223,8 +223,12 @@ const PivotDesigner: React.FC = () => {
     setExecuting(true)
     try {
       const res = await executePivot(config)
-      setPivotResult(res)
-      message.success('执行成功')
+      if (res.success) {
+        setPivotResult(res.data)
+        message.success('执行成功')
+      } else {
+        message.error(res.message || '执行失败')
+      }
     } catch (e: any) {
       message.error(e.message || '执行失败')
     } finally {
@@ -249,9 +253,13 @@ const PivotDesigner: React.FC = () => {
     }
 
     try {
-      const sql = await generatePivotSql(config)
-      setGeneratedSql(sql)
-      setSqlModalVisible(true)
+      const res = await generatePivotSql(config)
+      if (res.success) {
+        setGeneratedSql(res.data)
+        setSqlModalVisible(true)
+      } else {
+        message.error(res.message || '生成SQL失败')
+      }
     } catch (e: any) {
       message.error(e.message || '生成SQL失败')
     }

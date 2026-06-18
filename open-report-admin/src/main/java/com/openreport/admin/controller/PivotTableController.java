@@ -25,7 +25,7 @@ public class PivotTableController {
 
     @ApiOperation("执行交叉报表查询")
     @PostMapping("/execute")
-    @RequirePerms("pivot:tablaeexecuee")
+    @RequirePerms("pivot:designer:execute")
     public Result<PivotTableResult> execute(@RequestBody Map<String, Object> request) {
         @SuppressWarnings("unchecked")
         Map<String, Object> configMap = (Map<String, Object>) request.get("config");
@@ -52,7 +52,7 @@ public class PivotTableController {
 
     @ApiOperation("生成分组SQL")
     @PostMapping("/generate-sql")
-    @RequirePerms("pivot:designer:list")
+    @RequirePerms("pivot:designer:query")
     public Result<String> generateSql(@RequestBody Map<String, Object> request) {
         @SuppressWarnings("unchecked")
         Map<String, Object> configMap = (Map<String, Object>) request.get("config");

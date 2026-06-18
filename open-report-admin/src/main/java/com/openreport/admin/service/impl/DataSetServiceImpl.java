@@ -141,6 +141,52 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
     }
 
     @Override
+    public List<Map<String, Object>> executeCustomSql(Long dataSetId, String customSql, Map<String, Object> params) {
+        if (StringUtils.isBlank(customSql)) {
+            return Collections.emptyList();
+        }
+        DataSet dataSet = getById(dataSetId);
+        if (dataSet == null) {
+            throw new IllegalArgumentException("数据集不存在");
+        }
+        DataSourceConfig dsConfig = dataSourceConfigService.getById(dataSet.getDsId());
+        if (dsConfig == null) {
+            throw new IllegalArgumentException("数据源不存在");
+        }
+        String sql = dataSecurityService.applyRowSecurity(customSql, dataSetId);
+        Connection connection = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            Class.forName(dsConfig.getDriverClass());
+            connection = DriverManager.getConnection(dsConfig.getJdbcUrl(), dsConfig.getUsername(), dsConfig.getPassword());
+            ps = connection.prepareStatement(sql);
+            setParams(ps, dataSet.getSqlText(), params);
+            rs = ps.executeQuery();
+            ResultSetMetaData metaData = rs.getMetaData();
+            int columnCount = metaData.getColumnCount();
+            List<Map<String, Object>> rows = new ArrayList<>();
+            while (rs.next()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                for (int i = 1; i <= columnCount; i++) {
+                    String columnName = metaData.getColumnLabel(i);
+                    if (columnName == null || columnName.isEmpty()) {
+                        columnName = metaData.getColumnName(i);
+                    }
+                    row.put(columnName, rs.getObject(i));
+                }
+                dataSecurityService.applyFieldSecurity(row, dataSetId);
+                rows.add(row);
+            }
+            return rows;
+        } catch (Exception e) {
+            throw new RuntimeException("执行自定义SQL失败: " + e.getMessage(), e);
+        } finally {
+            closeResources(rs, ps, connection);
+        }
+    }
+
+    @Override
     public Map<String, Object> pagePreviewData(Long dataSetId, Map<String, Object> params, int pageNum, int pageSize) {
         Map<String, Object> result = new HashMap<>();
         DataSet dataSet = getById(dataSetId);
