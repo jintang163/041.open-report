@@ -22,6 +22,9 @@ public class DataSetController {
     @Autowired
     private DataSetService dataSetService;
 
+    @Autowired
+    private com.openreport.admin.websocket.WebSocketPushService pushService;
+
     @ApiOperation("分页查询数据集列表")
     @GetMapping("/page")
     @RequirePerms("data:set:list")
@@ -60,6 +63,7 @@ public class DataSetController {
             dataSet.setStatus(1);
         }
         dataSetService.save(dataSet);
+        pushService.pushDataChangeToAll("DATASET_ADD");
         return Result.success();
     }
 
@@ -70,6 +74,7 @@ public class DataSetController {
         dataSet.setUpdateBy(userId);
         dataSet.setUpdateTime(LocalDateTime.now());
         dataSetService.updateById(dataSet);
+        pushService.pushDataChangeToAll("DATASET_UPDATE");
         return Result.success();
     }
 
@@ -78,6 +83,7 @@ public class DataSetController {
     @RequirePerms("data:set:remove")
     public Result<Void> delete(@PathVariable Long id) {
         dataSetService.removeById(id);
+        pushService.pushDataChangeToAll("DATASET_DELETE");
         return Result.success();
     }
 

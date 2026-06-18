@@ -110,7 +110,7 @@ export const getReportDataPage = (id: number, params?: Record<string, any>, page
   hasMore?: boolean
   success?: boolean
 }> => {
-  return post(`/report-execute/report-data-page/${id}`, params, {
+  return post(`/report/report-data-page/${id}`, params, {
     params: { pageNum, pageSize, dataSetId }
   })
 }

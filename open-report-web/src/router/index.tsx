@@ -20,6 +20,7 @@ import ApprovalManagement from '@/pages/approval'
 import ScheduleManagement from '@/pages/schedule'
 import EmbedDemo from '@/pages/embed/demo'
 import PrintPage from '@/pages/print'
+import PreviewPage from '@/pages/preview'
 import { useUserStore } from '@/store/user'
 import { ComponentType } from 'react'
 
@@ -101,6 +102,11 @@ const routes = [
             path: 'designer/:id?',
             element: <Designer />,
             meta: { title: '报表设计器', icon: 'EditOutlined', hideInMenu: true }
+          },
+          {
+            path: 'preview/:id',
+            element: <PreviewPage />,
+            meta: { title: '报表预览', icon: 'EyeOutlined', hideInMenu: true }
           },
           {
             path: 'report/viewer/:id',

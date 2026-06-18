@@ -148,6 +148,10 @@ public class ReportExecuteController {
 
         result.put("tables", tables);
         result.put("dataSets", dataSetData);
+        result.put("title", template.getTemplateName());
+        result.put("summary", template.getDescription());
+        result.put("charts", new ArrayList<>());
+        result.put("html", null);
 
         if (pageMode) {
             result.put("pageMode", true);
@@ -163,12 +167,16 @@ public class ReportExecuteController {
                     tc.put("title", c.get("title") != null ? c.get("title") : c.get("name"));
                     tc.put("dataIndex", c.get("dataIndex") != null ? c.get("dataIndex") : c.get("name"));
                     tc.put("key", c.get("key") != null ? c.get("key") : c.get("name"));
+                    if (c.get("width") != null) tc.put("width", c.get("width"));
+                    if (c.get("align") != null) tc.put("align", c.get("align"));
                     tableDataColumns.add(tc);
                 }
             }
             tableData.put("columns", tableDataColumns);
             tableData.put("dataSource", pageInfo.get("rows") != null ? pageInfo.get("rows") : new ArrayList<>());
             tableData.put("total", pageInfo.get("total"));
+            tableData.put("pageNum", pageInfo.get("pageNum"));
+            tableData.put("pageSize", pageInfo.get("pageSize"));
             result.put("table", tableData);
         } else {
             result.put("pageMode", false);

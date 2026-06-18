@@ -61,6 +61,9 @@ public class ReportExecuteListener {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private org.springframework.kafka.core.KafkaTemplate<String, String> kafkaTemplate;
+
     @KafkaListener(topics = "report-execute-topic", groupId = "${spring.kafka.consumer.group-id}")
     public void onMessage(String message) {
         logger.info("收到报表执行消息：{}", message);
@@ -117,6 +120,8 @@ public class ReportExecuteListener {
             if (scheduleId != null) {
                 resetRetryCount(scheduleId);
             }
+
+            sendDataChangeNotification(reportId, scheduleId, outputFilePath);
 
             logger.info("报表执行完成，reportId: {}, costTime: {}ms", reportId, costTime);
         } catch (ReportExecuteException e) {
@@ -314,5 +319,21 @@ public class ReportExecuteListener {
         int delaySeconds = baseSeconds * (int) Math.pow(2, retryCount - 1);
         int maxDelay = 3600;
         return Math.min(delaySeconds, maxDelay) * 1000L;
+    }
+
+    private void sendDataChangeNotification(Long reportId, Long scheduleId, String outputFilePath) {
+        try {
+            Map<String, Object> notification = new HashMap<>();
+            notification.put("reportId", reportId);
+            notification.put("scheduleId", scheduleId);
+            notification.put("outputFilePath", outputFilePath);
+            notification.put("executeTime", System.currentTimeMillis());
+            notification.put("status", "SUCCESS");
+
+            kafkaTemplate.send("report-data-changed-topic", JSON.toJSONString(notification));
+            logger.info("已发送报表数据变更通知，reportId: {}, scheduleId: {}", reportId, scheduleId);
+        } catch (Exception e) {
+            logger.warn("发送报表数据变更通知失败，reportId: {}", reportId, e);
+        }
     }
 }

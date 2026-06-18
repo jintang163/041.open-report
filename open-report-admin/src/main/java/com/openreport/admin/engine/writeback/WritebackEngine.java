@@ -65,6 +65,9 @@ public class WritebackEngine {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private com.openreport.admin.websocket.WebSocketPushService pushService;
+
     private static final DateTimeFormatter BATCH_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     public DataSubmitResult executeSubmit(DataSubmitRequest request, Long userId) {
@@ -277,6 +280,14 @@ public class WritebackEngine {
         result.setFailCount(failCount);
         result.setExecuteTime(System.currentTimeMillis() - startTime);
         result.setDetails(detailResults);
+
+        if (successCount > 0 && request.getReportId() != null) {
+            try {
+                pushService.pushDataChange(request.getReportId());
+            } catch (Exception ex) {
+                log.warn("回写提交后推送数据变更失败: reportId={}", request.getReportId(), ex);
+            }
+        }
 
         return result;
     }

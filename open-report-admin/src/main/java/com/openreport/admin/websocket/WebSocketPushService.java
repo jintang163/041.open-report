@@ -149,6 +149,25 @@ public class WebSocketPushService {
         }
     }
 
+    public void pushDataChangeToAll(String action) {
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("action", action);
+            payload.put("timestamp", System.currentTimeMillis());
+
+            WebSocketMessage msg = WebSocketMessage.of(
+                    WebSocketMessageType.REPORT_DATA_CHANGED,
+                    WebSocketTopic.REPORT_LIST,
+                    payload
+            );
+            webSocketHandler.broadcastToTopic(WebSocketTopic.REPORT_LIST, msg);
+
+            log.info("推送全量数据变更: action={}", action);
+        } catch (Exception e) {
+            log.error("推送全量数据变更失败: action={}", action, e);
+        }
+    }
+
     public int getOnlineCount() {
         return webSocketHandler.getOnlineCount();
     }

@@ -1,17 +1,21 @@
 package com.openreport.admin.websocket;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.openreport.common.utils.JwtUtils;
 import com.openreport.common.websocket.WebSocketMessage;
 import com.openreport.common.websocket.WebSocketMessageType;
 import com.openreport.common.websocket.WebSocketTopic;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,12 +33,67 @@ public class ReportWebSocketHandler extends TextWebSocketHandler {
 
     private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
 
+    @Autowired
+    private JwtUtils jwtUtils;
+
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         String sessionId = session.getId();
+        URI uri = session.getUri();
+
+        if (!authenticateToken(uri)) {
+            log.warn("WebSocket连接认证失败，关闭连接: sessionId={}", sessionId);
+            session.close(CloseStatus.NOT_ACCEPTABLE.withReason("无效的认证token"));
+            return;
+        }
+
+        Long userId = extractUserIdFromToken(uri);
+        if (userId != null) {
+            session.getAttributes().put("userId", userId);
+        }
+
         sessions.put(sessionId, session);
         sessionTopics.put(session, new CopyOnWriteArraySet<>());
-        log.info("WebSocket连接建立: sessionId={}", sessionId);
+        log.info("WebSocket连接建立成功: sessionId={}, userId={}", sessionId, userId);
+    }
+
+    private boolean authenticateToken(URI uri) {
+        if (uri == null) {
+            return false;
+        }
+        try {
+            Map<String, String> queryParams = UriComponentsBuilder.fromUri(uri)
+                    .build()
+                    .getQueryParams()
+                    .toSingleValueMap();
+            String token = queryParams.get("token");
+            if (token == null || token.isEmpty()) {
+                return false;
+            }
+            return jwtUtils.validateToken(token);
+        } catch (Exception e) {
+            log.error("WebSocket token认证异常", e);
+            return false;
+        }
+    }
+
+    private Long extractUserIdFromToken(URI uri) {
+        if (uri == null) {
+            return null;
+        }
+        try {
+            Map<String, String> queryParams = UriComponentsBuilder.fromUri(uri)
+                    .build()
+                    .getQueryParams()
+                    .toSingleValueMap();
+            String token = queryParams.get("token");
+            if (token != null && !token.isEmpty()) {
+                return jwtUtils.getUserIdFromToken(token);
+            }
+        } catch (Exception e) {
+            log.warn("从token中提取userId失败", e);
+        }
+        return null;
     }
 
     @Override
