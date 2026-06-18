@@ -34,7 +34,17 @@ public enum ResultCode {
 
     TEMPLATE_LOCKED(4001, "模板正在被编辑"),
     TEMPLATE_LOCK_ACQUIRE_FAILED(4002, "获取编辑锁失败"),
-    TEMPLATE_LOCK_NOT_OWNER(4003, "您不是当前编辑者，无法操作");
+    TEMPLATE_LOCK_NOT_OWNER(4003, "您不是当前编辑者，无法操作"),
+
+    TOO_MANY_REQUESTS(5001, "请求过于频繁，请稍后再试"),
+    IP_NOT_ALLOWED(5002, "IP地址不在白名单中"),
+    API_KEY_INVALID(5003, "API Key无效"),
+    API_KEY_EXPIRED(5004, "API Key已过期"),
+    API_KEY_DISABLED(5005, "API Key已禁用"),
+    API_KEY_REQUIRED(5006, "API Key不能为空"),
+    REPORT_NOT_PUBLISHED(5007, "报表未发布"),
+    REPORT_RENDER_ERROR(5008, "报表渲染失败"),
+    EMBED_TOKEN_EXPIRED(5009, "嵌入式Token已过期");
 
     private final Integer code;
     private final String message;
