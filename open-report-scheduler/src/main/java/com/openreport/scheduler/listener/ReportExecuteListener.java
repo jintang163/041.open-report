@@ -65,11 +65,16 @@ public class ReportExecuteListener {
     public void onMessage(String message) {
         logger.info("收到报表执行消息：{}", message);
         Long logId = null;
+        Long scheduleId = null;
+        Long reportId = null;
+        String outputFilePath = null;
         long startTime = System.currentTimeMillis();
+        JSONObject messageObj = null;
+
         try {
-            JSONObject messageObj = JSON.parseObject(message);
-            Long scheduleId = messageObj.getLong("scheduleId");
-            Long reportId = messageObj.getLong("reportId");
+            messageObj = JSON.parseObject(message);
+            scheduleId = messageObj.getLong("scheduleId");
+            reportId = messageObj.getLong("reportId");
             String params = messageObj.getString("params");
             String executeType = messageObj.getString("executeType");
             String outputType = messageObj.getString("outputType");
@@ -90,35 +95,46 @@ public class ReportExecuteListener {
 
             ReportTemplateInfo template = reportTemplateInfoMapper.selectById(reportId);
             if (template == null) {
-                throw new RuntimeException("报表模板不存在，reportId: " + reportId);
+                throw new ReportExecuteException("报表模板不存在，reportId: " + reportId, false);
             }
 
             String actualOutputType = determineOutputType(outputType);
-            String outputFilePath = generateOutputFile(template, paramMap, actualOutputType);
+            outputFilePath = generateOutputFile(template, paramMap, actualOutputType);
             logger.info("报表生成成功，reportId: {}, outputType: {}, outputPath: {}", reportId, actualOutputType, outputFilePath);
+
+            boolean emailNeeded = needsEmail(outputType, emailList);
+            if (emailNeeded) {
+                boolean emailSuccess = sendReportEmail(template, emailList, emailCcList, emailSubject, emailContent, outputFilePath, actualOutputType);
+                if (!emailSuccess) {
+                    throw new ReportExecuteException("邮件发送失败", true);
+                }
+                logger.info("报表邮件发送成功，reportId: {}, to: {}", reportId, emailList);
+            }
 
             long costTime = System.currentTimeMillis() - startTime;
             reportLogService.updateLogSuccess(logId, costTime, outputFilePath);
-
-            if (needsEmail(outputType, emailList)) {
-                sendReportEmail(template, emailList, emailCcList, emailSubject, emailContent, outputFilePath, actualOutputType);
-            }
 
             if (scheduleId != null) {
                 resetRetryCount(scheduleId);
             }
 
             logger.info("报表执行完成，reportId: {}, costTime: {}ms", reportId, costTime);
-        } catch (Exception e) {
-            logger.error("报表执行失败", e);
+        } catch (ReportExecuteException e) {
+            logger.error("报表执行失败，reportId: {}, outputGenerated: {}", reportId, e.isOutputGenerated(), e);
             long costTime = System.currentTimeMillis() - startTime;
             if (logId != null) {
-                reportLogService.updateLogFail(logId, costTime, e.getMessage());
+                reportLogService.updateLogFail(logId, costTime, e.getMessage(), e.isOutputGenerated() ? outputFilePath : null);
             }
-
-            JSONObject messageObj = JSON.parseObject(message);
-            Long scheduleId = messageObj.getLong("scheduleId");
-            if (scheduleId != null) {
+            if (scheduleId != null && messageObj != null) {
+                scheduleRetry(scheduleId, messageObj, e.getMessage());
+            }
+        } catch (Exception e) {
+            logger.error("报表执行异常", e);
+            long costTime = System.currentTimeMillis() - startTime;
+            if (logId != null) {
+                reportLogService.updateLogFail(logId, costTime, e.getMessage(), outputFilePath);
+            }
+            if (scheduleId != null && messageObj != null) {
                 scheduleRetry(scheduleId, messageObj, e.getMessage());
             }
         }
@@ -183,14 +199,14 @@ public class ReportExecuteListener {
         return dirPath + File.separator + "report_" + reportId + "_" + timeStr + fileExt;
     }
 
-    private void sendReportEmail(ReportTemplateInfo template, String emailList, String emailCcList,
-                                  String emailSubject, String emailContent, String attachmentPath, String outputType) {
+    private boolean sendReportEmail(ReportTemplateInfo template, String emailList, String emailCcList,
+                                     String emailSubject, String emailContent, String attachmentPath, String outputType) {
         List<String> toList = parseEmails(emailList);
         List<String> ccList = parseEmails(emailCcList);
 
         if (toList.isEmpty()) {
             logger.warn("收件人列表为空，跳过邮件发送");
-            return;
+            return true;
         }
 
         String subject = StrUtil.isNotBlank(emailSubject)
@@ -202,15 +218,10 @@ public class ReportExecuteListener {
         File attachment = new File(attachmentPath);
         if (!attachment.exists()) {
             logger.warn("附件文件不存在，跳过邮件发送: {}", attachmentPath);
-            return;
+            return false;
         }
 
-        boolean success = emailService.sendEmailWithAttachment(toList, ccList, subject, content, attachment);
-        if (!success) {
-            logger.error("报表邮件发送失败，reportId: {}, to: {}", template.getId(), toList);
-            throw new RuntimeException("邮件发送失败");
-        }
-        logger.info("报表邮件发送成功，reportId: {}, to: {}", template.getId(), toList);
+        return emailService.sendEmailWithAttachment(toList, ccList, subject, content, attachment);
     }
 
     private String buildEmailContent(ReportTemplateInfo template, String customContent, String outputType) {

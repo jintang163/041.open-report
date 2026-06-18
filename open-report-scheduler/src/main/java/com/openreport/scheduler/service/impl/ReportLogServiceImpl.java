@@ -61,11 +61,19 @@ public class ReportLogServiceImpl extends ServiceImpl<ReportLogMapper, ReportLog
 
     @Override
     public void updateLogFail(Long logId, Long costTime, String errorMsg) {
+        updateLogFail(logId, costTime, errorMsg, null);
+    }
+
+    @Override
+    public void updateLogFail(Long logId, Long costTime, String errorMsg, String outputPath) {
         ReportLog log = getById(logId);
         if (log != null) {
             log.setStatus("FAIL");
             log.setCostTime(costTime);
             log.setErrorMsg(errorMsg);
+            if (outputPath != null) {
+                log.setOutputPath(outputPath);
+            }
             updateById(log);
         }
     }
