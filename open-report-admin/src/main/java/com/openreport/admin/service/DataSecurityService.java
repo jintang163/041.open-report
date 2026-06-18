@@ -17,4 +17,6 @@ public interface DataSecurityService {
     List<Map<String, Object>> filterHiddenFields(List<Map<String, Object>> rows, String tableName);
 
     List<Map<String, Object>> applyFieldMasking(List<Map<String, Object>> rows, String tableName);
+
+    List<Map<String, Object>> filterHiddenColumns(List<Map<String, Object>> columns, String tableName);
 }

@@ -1,6 +1,7 @@
 package com.openreport.admin.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.openreport.admin.config.RequirePerms;
 import com.openreport.admin.entity.SysRowSecurity;
 import com.openreport.admin.service.SysRowSecurityService;
 import com.openreport.common.result.Result;
@@ -22,6 +23,7 @@ public class SysRowSecurityController {
 
     @ApiOperation("查询所有行级安全规则")
     @GetMapping("/list")
+    @RequirePerms("system:row-security:list")
     public Result<List<SysRowSecurity>> list(@RequestParam(required = false) Long roleId) {
         if (roleId != null) {
             return Result.success(sysRowSecurityService.listByRoleIds(List.of(roleId)));
@@ -31,6 +33,7 @@ public class SysRowSecurityController {
 
     @ApiOperation("分页查询行级安全规则")
     @GetMapping("/page")
+    @RequirePerms("system:row-security:list")
     public Result<Page<SysRowSecurity>> page(
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
@@ -41,6 +44,7 @@ public class SysRowSecurityController {
 
     @ApiOperation("新增行级安全规则")
     @PostMapping
+    @RequirePerms("system:row-security:add")
     public Result<Void> add(@RequestBody SysRowSecurity rule) {
         rule.setCreateTime(LocalDateTime.now());
         rule.setUpdateTime(LocalDateTime.now());
@@ -54,6 +58,7 @@ public class SysRowSecurityController {
 
     @ApiOperation("更新行级安全规则")
     @PutMapping
+    @RequirePerms("system:row-security:edit")
     public Result<Void> update(@RequestBody SysRowSecurity rule) {
         rule.setUpdateTime(LocalDateTime.now());
         sysRowSecurityService.updateById(rule);
@@ -62,6 +67,7 @@ public class SysRowSecurityController {
 
     @ApiOperation("删除行级安全规则")
     @DeleteMapping("/{id}")
+    @RequirePerms("system:row-security:remove")
     public Result<Void> delete(@PathVariable Long id) {
         sysRowSecurityService.removeById(id);
         return Result.success();

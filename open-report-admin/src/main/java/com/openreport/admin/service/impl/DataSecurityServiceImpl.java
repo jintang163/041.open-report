@@ -126,6 +126,33 @@ public class DataSecurityServiceImpl implements DataSecurityService {
         return result;
     }
 
+    @Override
+    public List<Map<String, Object>> filterHiddenColumns(List<Map<String, Object>> columns, String tableName) {
+        Set<String> hiddenFields = getHiddenFields(tableName);
+        if (hiddenFields.isEmpty()) {
+            return columns;
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> column : columns) {
+            Object nameObj = column.get("name");
+            Object dataIndexObj = column.get("dataIndex");
+            Object keyObj = column.get("key");
+            String colName = null;
+            if (nameObj != null) {
+                colName = nameObj.toString();
+            } else if (dataIndexObj != null) {
+                colName = dataIndexObj.toString();
+            } else if (keyObj != null) {
+                colName = keyObj.toString();
+            }
+            if (colName == null || !hiddenFields.contains(colName)) {
+                result.add(column);
+            }
+        }
+        return result;
+    }
+
     private String extractMainTableName(String sql) {
         String trimmed = sql.trim().toUpperCase();
         if (trimmed.startsWith("SELECT")) {

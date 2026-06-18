@@ -1,6 +1,7 @@
 package com.openreport.admin.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.openreport.admin.config.RequirePerms;
 import com.openreport.admin.entity.SysFieldPermission;
 import com.openreport.admin.service.SysFieldPermissionService;
 import com.openreport.common.result.Result;
@@ -22,6 +23,7 @@ public class SysFieldPermissionController {
 
     @ApiOperation("查询所有字段权限规则")
     @GetMapping("/list")
+    @RequirePerms("system:field-permission:list")
     public Result<List<SysFieldPermission>> list(@RequestParam(required = false) Long roleId) {
         if (roleId != null) {
             return Result.success(sysFieldPermissionService.listByRoleIds(List.of(roleId)));
@@ -31,6 +33,7 @@ public class SysFieldPermissionController {
 
     @ApiOperation("分页查询字段权限规则")
     @GetMapping("/page")
+    @RequirePerms("system:field-permission:list")
     public Result<Page<SysFieldPermission>> page(
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
@@ -41,6 +44,7 @@ public class SysFieldPermissionController {
 
     @ApiOperation("新增字段权限规则")
     @PostMapping
+    @RequirePerms("system:field-permission:add")
     public Result<Void> add(@RequestBody SysFieldPermission rule) {
         rule.setCreateTime(LocalDateTime.now());
         rule.setUpdateTime(LocalDateTime.now());
@@ -54,6 +58,7 @@ public class SysFieldPermissionController {
 
     @ApiOperation("更新字段权限规则")
     @PutMapping
+    @RequirePerms("system:field-permission:edit")
     public Result<Void> update(@RequestBody SysFieldPermission rule) {
         rule.setUpdateTime(LocalDateTime.now());
         sysFieldPermissionService.updateById(rule);
@@ -62,6 +67,7 @@ public class SysFieldPermissionController {
 
     @ApiOperation("删除字段权限规则")
     @DeleteMapping("/{id}")
+    @RequirePerms("system:field-permission:remove")
     public Result<Void> delete(@PathVariable Long id) {
         sysFieldPermissionService.removeById(id);
         return Result.success();

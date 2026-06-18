@@ -2,6 +2,7 @@ package com.openreport.admin.controller;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
+import com.openreport.admin.config.RequirePerms;
 import com.openreport.admin.entity.DataSet;
 import com.openreport.admin.entity.ReportTemplate;
 import com.openreport.admin.service.DataSetService;
@@ -51,6 +52,7 @@ public class ReportExportController {
 
     @ApiOperation("导出Excel")
     @GetMapping("/report/{id}/excel")
+    @RequirePerms("report:manage:export")
     public ResponseEntity<byte[]> exportExcel(
             @ApiParam(value = "报表ID", required = true) @PathVariable Long id,
             @ApiParam(value = "访问token") @RequestParam(required = false) String token,
@@ -78,6 +80,7 @@ public class ReportExportController {
 
     @ApiOperation("导出PDF")
     @GetMapping("/report/{id}/pdf")
+    @RequirePerms("report:manage:export")
     public ResponseEntity<byte[]> exportPdf(
             @ApiParam(value = "报表ID", required = true) @PathVariable Long id,
             @ApiParam(value = "访问token") @RequestParam(required = false) String token,
@@ -105,6 +108,7 @@ public class ReportExportController {
 
     @ApiOperation("导出HTML")
     @GetMapping("/report/{id}/html")
+    @RequirePerms("report:manage:export")
     public ResponseEntity<String> exportHtml(
             @ApiParam(value = "报表ID", required = true) @PathVariable Long id,
             @ApiParam(value = "访问token") @RequestParam(required = false) String token,
@@ -134,6 +138,7 @@ public class ReportExportController {
 
     @ApiOperation("批量导出")
     @PostMapping("/report/batch")
+    @RequirePerms("report:manage:export")
     public Result<List<Map<String, Object>>> batchExport(
             @ApiParam(value = "批量导出参数", required = true) @RequestBody BatchExportRequest batchRequest,
             HttpServletRequest request) {

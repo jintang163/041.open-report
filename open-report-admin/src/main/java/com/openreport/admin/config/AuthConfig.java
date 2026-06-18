@@ -24,13 +24,7 @@ public class AuthConfig implements WebMvcConfigurer {
                         "/swagger-resources/**",
                         "/v2/api-docs",
                         "/favicon.ico",
-                        "/error",
-                        "/api/embed/report/*",
-                        "/api/embed/report/*/data",
-                        "/api/embed/report/*/export",
-                        "/api/export/report/*/excel",
-                        "/api/export/report/*/pdf",
-                        "/api/export/report/*/html"
+                        "/error"
                 );
     }
 

@@ -106,4 +106,27 @@ INSERT INTO `sys_field_permission` (`role_id`, `table_name`, `field_name`, `perm
 (3, '*', 'phone', 'MASKED', '普通用户手机号脱敏', 1, NOW(), NOW(), 0),
 (3, '*', 'email', 'MASKED', '普通用户邮箱脱敏', 1, NOW(), NOW(), 0);
 
+-- ----------------------------
+-- 安全管理菜单数据
+-- 行级安全、字段权限菜单（与前端路由路径对齐）
+-- ----------------------------
+INSERT INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `component`, `perms`, `icon`, `sort`, `visible`, `create_time`, `update_time`, `deleted`) VALUES
+-- 系统管理子菜单：行级安全、字段权限
+(103, 1, '行级安全', 'C', '/system/row-security', 'system/row-security/index', 'system:row-security:list', 'safety', 4, 1, NOW(), NOW(), 0),
+(104, 1, '字段权限', 'C', '/system/field-permission', 'system/field-permission/index', 'system:field-permission:list', 'lock', 5, 1, NOW(), NOW(), 0);
+
+-- 行级安全按钮权限
+INSERT INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `component`, `perms`, `icon`, `sort`, `visible`, `create_time`, `update_time`, `deleted`) VALUES
+(1031, 103, '行级安全查询', 'F', NULL, NULL, 'system:row-security:query', NULL, 1, 1, NOW(), NOW(), 0),
+(1032, 103, '行级安全新增', 'F', NULL, NULL, 'system:row-security:add', NULL, 2, 1, NOW(), NOW(), 0),
+(1033, 103, '行级安全修改', 'F', NULL, NULL, 'system:row-security:edit', NULL, 3, 1, NOW(), NOW(), 0),
+(1034, 103, '行级安全删除', 'F', NULL, NULL, 'system:row-security:remove', NULL, 4, 1, NOW(), NOW(), 0);
+
+-- 字段权限按钮权限
+INSERT INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `component`, `perms`, `icon`, `sort`, `visible`, `create_time`, `update_time`, `deleted`) VALUES
+(1041, 104, '字段权限查询', 'F', NULL, NULL, 'system:field-permission:query', NULL, 1, 1, NOW(), NOW(), 0),
+(1042, 104, '字段权限新增', 'F', NULL, NULL, 'system:field-permission:add', NULL, 2, 1, NOW(), NOW(), 0),
+(1043, 104, '字段权限修改', 'F', NULL, NULL, 'system:field-permission:edit', NULL, 3, 1, NOW(), NOW(), 0),
+(1044, 104, '字段权限删除', 'F', NULL, NULL, 'system:field-permission:remove', NULL, 4, 1, NOW(), NOW(), 0);
+
 SET FOREIGN_KEY_CHECKS = 1;

@@ -80,9 +80,7 @@ function buildMenuItemsFromPermissions(menus: MenuItem[], permissions: string[])
   }
   addPermittedPaths(menus)
 
-  const allPermittedPaths = new Set([...permittedPaths, ...systemSubMenus])
-
-  return buildMenuFromPaths(allPermittedPaths)
+  return buildMenuFromPaths(permittedPaths)
 }
 
 function buildMenuFromPaths(paths: Set<string>) {

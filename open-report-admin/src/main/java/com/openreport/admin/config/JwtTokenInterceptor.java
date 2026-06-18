@@ -58,11 +58,37 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
             writeErrorResponse(response, ResultCode.TOKEN_INVALID);
             return false;
         }
-        Long userId = jwtUtils.getUserIdFromToken(token);
-        String username = jwtUtils.getUsernameFromToken(token);
+
+        io.jsonwebtoken.Claims claims = jwtUtils.parseToken(token);
+        String tokenType = claims.get("type") != null ? claims.get("type").toString() : null;
+
+        Long userId;
+        String username;
+
+        if ("embed".equals(tokenType)) {
+            Object createBy = claims.get("createBy");
+            Object createByUsername = claims.get("createByUsername");
+            userId = createBy != null ? Long.valueOf(createBy.toString()) : null;
+            username = createByUsername != null ? createByUsername.toString() : "embed_user";
+        } else {
+            userId = jwtUtils.getUserIdFromToken(token);
+            username = jwtUtils.getUsernameFromToken(token);
+        }
+
+        if (userId == null) {
+            writeErrorResponse(response, ResultCode.UNAUTHORIZED);
+            return false;
+        }
+
         request.setAttribute("userId", userId);
         request.setAttribute("username", username);
 
+        buildSecurityContext(userId, username);
+
+        return true;
+    }
+
+    private void buildSecurityContext(Long userId, String username) {
         com.openreport.admin.entity.SysUser user = sysUserService.getById(userId);
         Long deptId = user != null ? user.getDeptId() : null;
         List<com.openreport.admin.entity.SysRole> roles = sysRoleService.listByUserId(userId);
@@ -81,8 +107,6 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
         }
         SecurityContext securityContext = new SecurityContext(userId, username, deptId, permissions, roleIds);
         SecurityContextHolder.set(securityContext);
-
-        return true;
     }
 
     @Override

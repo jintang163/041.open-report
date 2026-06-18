@@ -32,6 +32,7 @@ public class ReportExecuteController {
 
     @ApiOperation("执行报表（主入口，自动探测大数据量）")
     @PostMapping("/execute/{templateId}")
+    @RequirePerms("report:manage:list")
     public Result<Map<String, Object>> executeReport(
             @PathVariable Long templateId,
             @RequestBody(required = false) Map<String, Object> params) {
@@ -190,6 +191,7 @@ public class ReportExecuteController {
 
     @ApiOperation("获取报表参数配置")
     @GetMapping("/params/{templateId}")
+    @RequirePerms("report:manage:list")
     public Result<List<Map<String, Object>>> getReportParams(@PathVariable Long templateId) {
         ReportTemplate template = reportTemplateService.getById(templateId);
         if (template == null) {
@@ -207,6 +209,7 @@ public class ReportExecuteController {
 
     @ApiOperation("预览报表数据")
     @PostMapping("/preview/{templateId}")
+    @RequirePerms("report:manage:list")
     public Result<Map<String, Object>> previewReport(
             @PathVariable Long templateId,
             @RequestBody(required = false) Map<String, Object> params) {
@@ -274,6 +277,7 @@ public class ReportExecuteController {
 
     @ApiOperation("获取单个数据集预览数据（报表设计器用）")
     @PostMapping("/dataset-preview/{dataSetId}")
+    @RequirePerms("report:manage:list")
     public Result<Map<String, Object>> previewDataSet(
             @PathVariable Long dataSetId,
             @RequestBody(required = false) Map<String, Object> params,
@@ -288,6 +292,7 @@ public class ReportExecuteController {
 
     @ApiOperation("分页查询数据集预览数据（大数据量用）")
     @PostMapping("/dataset-page/{dataSetId}")
+    @RequirePerms("report:manage:list")
     public Result<Map<String, Object>> pageDataSet(
             @PathVariable Long dataSetId,
             @RequestBody(required = false) Map<String, Object> params,
@@ -303,6 +308,7 @@ public class ReportExecuteController {
 
     @ApiOperation("分页查询报表数据（大数据量滚动加载用）")
     @PostMapping("/report-data-page/{templateId}")
+    @RequirePerms("report:manage:list")
     public Result<Map<String, Object>> pageReportData(
             @PathVariable Long templateId,
             @RequestBody(required = false) Map<String, Object> params,

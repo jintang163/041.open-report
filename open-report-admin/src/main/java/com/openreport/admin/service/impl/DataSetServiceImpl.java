@@ -115,6 +115,7 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
             String tableName = extractMainTableName(dataSet.getSqlText());
             rows = dataSecurityService.filterHiddenFields(rows, tableName);
             rows = dataSecurityService.applyFieldMasking(rows, tableName);
+            columns = dataSecurityService.filterHiddenColumns(columns, tableName);
             result.put("success", true);
             result.put("columns", columns);
             result.put("rows", rows);
@@ -214,6 +215,7 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
             String tableName = extractMainTableName(dataSet.getSqlText());
             rows = dataSecurityService.filterHiddenFields(rows, tableName);
             rows = dataSecurityService.applyFieldMasking(rows, tableName);
+            columns = dataSecurityService.filterHiddenColumns(columns, tableName);
 
             result.put("success", true);
             result.put("columns", columns);

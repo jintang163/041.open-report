@@ -23,6 +23,7 @@ public class ReportTemplateController {
 
     @ApiOperation("分页查询报表模板列表")
     @GetMapping("/page")
+    @RequirePerms("report:designer:list")
     public Result<Page<ReportTemplate>> page(
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
@@ -33,12 +34,14 @@ public class ReportTemplateController {
 
     @ApiOperation("获取所有报表模板列表")
     @GetMapping("/list")
+    @RequirePerms("report:designer:list")
     public Result<List<ReportTemplate>> list() {
         return Result.success(reportTemplateService.listAll());
     }
 
     @ApiOperation("获取报表模板详情")
     @GetMapping("/{id}")
+    @RequirePerms("report:designer:list")
     public Result<ReportTemplate> getById(@PathVariable Long id) {
         return Result.success(reportTemplateService.getById(id));
     }

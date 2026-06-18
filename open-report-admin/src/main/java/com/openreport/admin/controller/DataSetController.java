@@ -1,6 +1,7 @@
 package com.openreport.admin.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.openreport.admin.config.RequirePerms;
 import com.openreport.admin.entity.DataSet;
 import com.openreport.admin.service.DataSetService;
 import com.openreport.common.result.Result;
@@ -23,6 +24,7 @@ public class DataSetController {
 
     @ApiOperation("分页查询数据集列表")
     @GetMapping("/page")
+    @RequirePerms("data:set:list")
     public Result<Page<DataSet>> page(
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
@@ -33,18 +35,21 @@ public class DataSetController {
 
     @ApiOperation("根据数据源ID获取数据集列表")
     @GetMapping("/list/{dsId}")
+    @RequirePerms("data:set:list")
     public Result<List<DataSet>> listByDsId(@PathVariable Long dsId) {
         return Result.success(dataSetService.listByDsId(dsId));
     }
 
     @ApiOperation("获取数据集详情")
     @GetMapping("/{id}")
+    @RequirePerms("data:set:list")
     public Result<DataSet> getById(@PathVariable Long id) {
         return Result.success(dataSetService.getById(id));
     }
 
     @ApiOperation("新增数据集")
     @PostMapping
+    @RequirePerms("data:set:add")
     public Result<Void> add(@RequestBody DataSet dataSet, @RequestAttribute("userId") Long userId) {
         dataSet.setCreateBy(userId);
         dataSet.setUpdateBy(userId);
@@ -60,6 +65,7 @@ public class DataSetController {
 
     @ApiOperation("更新数据集")
     @PutMapping
+    @RequirePerms("data:set:edit")
     public Result<Void> update(@RequestBody DataSet dataSet, @RequestAttribute("userId") Long userId) {
         dataSet.setUpdateBy(userId);
         dataSet.setUpdateTime(LocalDateTime.now());
@@ -69,6 +75,7 @@ public class DataSetController {
 
     @ApiOperation("删除数据集")
     @DeleteMapping("/{id}")
+    @RequirePerms("data:set:remove")
     public Result<Void> delete(@PathVariable Long id) {
         dataSetService.removeById(id);
         return Result.success();
@@ -76,6 +83,7 @@ public class DataSetController {
 
     @ApiOperation("预览数据集数据")
     @PostMapping("/preview/{id}")
+    @RequirePerms("data:set:list")
     public Result<Map<String, Object>> previewData(
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, Object> params,
@@ -85,6 +93,7 @@ public class DataSetController {
 
     @ApiOperation("解析SQL获取参数")
     @PostMapping("/parse-sql")
+    @RequirePerms("data:set:list")
     public Result<Map<String, Object>> parseSql(@RequestBody Map<String, String> body) {
         String sqlText = body.get("sqlText");
         return Result.success(dataSetService.parseSql(sqlText));

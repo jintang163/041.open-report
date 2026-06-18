@@ -25,6 +25,7 @@ public class DataSourceConfigController {
 
     @ApiOperation("分页查询数据源列表")
     @GetMapping("/page")
+    @RequirePerms("data:source:list")
     public Result<Page<DataSourceConfig>> page(
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
@@ -35,12 +36,14 @@ public class DataSourceConfigController {
 
     @ApiOperation("获取所有数据源列表")
     @GetMapping("/list")
+    @RequirePerms("data:source:list")
     public Result<List<DataSourceConfig>> list() {
         return Result.success(dataSourceConfigService.listAll());
     }
 
     @ApiOperation("获取数据源详情")
     @GetMapping("/{id}")
+    @RequirePerms("data:source:list")
     public Result<DataSourceConfig> getById(@PathVariable Long id) {
         return Result.success(dataSourceConfigService.getById(id));
     }
@@ -81,6 +84,7 @@ public class DataSourceConfigController {
 
     @ApiOperation("测试数据源连接")
     @PostMapping("/test")
+    @RequirePerms("data:source:list")
     public Result<Boolean> testConnection(@RequestBody DataSourceConfig config) {
         boolean success = dataSourceConfigService.testConnection(config);
         if (success) {
@@ -92,6 +96,7 @@ public class DataSourceConfigController {
 
     @ApiOperation("根据ID测试连接")
     @PostMapping("/test/{id}")
+    @RequirePerms("data:source:list")
     public Result<Boolean> testConnectionById(@PathVariable Long id) {
         DataSourceConfig config = dataSourceConfigService.getById(id);
         if (config == null) {
@@ -107,18 +112,21 @@ public class DataSourceConfigController {
 
     @ApiOperation("获取数据源连接信息")
     @GetMapping("/connection/{id}")
+    @RequirePerms("data:source:list")
     public Result<Map<String, Object>> getConnectionInfo(@PathVariable Long id) {
         return Result.success(dataSourceConfigService.getConnectionInfo(id));
     }
 
     @ApiOperation("获取数据源表列表")
     @GetMapping("/{id}/tables")
+    @RequirePerms("data:source:list")
     public Result<List<Map<String, Object>>> getTables(@PathVariable Long id) {
         return Result.success(dataSourceConfigService.getTables(id));
     }
 
     @ApiOperation("获取表字段信息")
     @GetMapping("/{id}/columns/{tableName}")
+    @RequirePerms("data:source:list")
     public Result<List<Map<String, Object>>> getTableColumns(
             @PathVariable Long id,
             @PathVariable String tableName) {
@@ -127,12 +135,14 @@ public class DataSourceConfigController {
 
     @ApiOperation("生成数据源Schema信息（提供给大模型）")
     @GetMapping("/{id}/schema")
+    @RequirePerms("data:source:list")
     public Result<String> generateSchemaInfo(@PathVariable Long id) {
         return Result.success(dataSourceConfigService.generateSchemaInfo(id));
     }
 
     @ApiOperation("校验SQL是否可执行")
     @PostMapping("/{id}/validate-sql")
+    @RequirePerms("data:source:list")
     public Result<Map<String, Object>> validateSql(
             @PathVariable Long id,
             @RequestBody Map<String, String> body) {
