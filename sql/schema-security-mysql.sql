@@ -129,4 +129,17 @@ INSERT INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `co
 (1043, 104, '字段权限修改', 'F', NULL, NULL, 'system:field-permission:edit', NULL, 3, 1, NOW(), NOW(), 0),
 (1044, 104, '字段权限删除', 'F', NULL, NULL, 'system:field-permission:remove', NULL, 4, 1, NOW(), NOW(), 0);
 
+-- ----------------------------
+-- 交叉报表菜单数据
+-- 与前端路由路径对齐
+-- ----------------------------
+INSERT INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `component`, `perms`, `icon`, `sort`, `visible`, `create_time`, `update_time`, `deleted`) VALUES
+(105, 0, '交叉报表', 'C', '/pivot-designer', 'pivot-designer/index', 'pivot:designer:list', 'table', 3, 1, NOW(), NOW(), 0);
+
+-- 交叉报表按钮权限
+INSERT INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `component`, `perms`, `icon`, `sort`, `visible`, `create_time`, `update_time`, `deleted`) VALUES
+(1051, 105, '交叉报表查询', 'F', NULL, NULL, 'pivot:designer:query', NULL, 1, 1, NOW(), NOW(), 0),
+(1052, 105, '交叉报表执行', 'F', NULL, NULL, 'pivot:designer:execute', NULL, 2, 1, NOW(), NOW(), 0),
+(1053, 105, '交叉报表导出', 'F', NULL, NULL, 'pivot:designer:export', NULL, 3, 1, NOW(), NOW(), 0);
+
 SET FOREIGN_KEY_CHECKS = 1;

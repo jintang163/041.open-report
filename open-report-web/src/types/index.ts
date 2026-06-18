@@ -395,3 +395,53 @@ export interface SysDept {
   createTime?: string
   updateTime?: string
 }
+
+export type PivotFieldType = 'ROW' | 'COLUMN' | 'VALUE'
+
+export type AggregateFunction = 'SUM' | 'COUNT' | 'AVG' | 'MAX' | 'MIN'
+
+export interface PivotField {
+  fieldName: string
+  displayName?: string
+  fieldType: PivotFieldType
+  aggregateFunction?: AggregateFunction
+  sortOrder?: number
+}
+
+export interface PivotTableConfig {
+  dataSetId: number
+  rowFields: PivotField[]
+  columnFields: PivotField[]
+  valueFields: PivotField[]
+  showSubtotal?: boolean
+  showGrandTotal?: boolean
+  subtotalPosition?: 'top' | 'bottom'
+}
+
+export interface PivotHeaderCell {
+  value: any
+  rowSpan?: number
+  colSpan?: number
+  level?: number
+  isLeaf?: boolean
+  fieldName?: string
+  fieldValue?: any
+}
+
+export interface PivotDataCell {
+  rowIndex: number
+  colIndex: number
+  value: any
+  formattedValue?: string
+  aggregateFunction?: string
+  isSubtotal?: boolean
+  isGrandTotal?: boolean
+}
+
+export interface PivotTableResult {
+  rowHeaders: PivotHeaderCell[][]
+  columnHeaders: PivotHeaderCell[][]
+  dataCells: PivotDataCell[][]
+  summary?: Record<string, any>
+  drillDownFields?: string[]
+}

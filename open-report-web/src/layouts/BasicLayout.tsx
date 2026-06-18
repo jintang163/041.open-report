@@ -49,6 +49,7 @@ const staticMenuConfig: Record<string, { icon: string; label: string }> = {
   '/datasource': { icon: 'DatabaseOutlined', label: '数据源管理' },
   '/dataset': { icon: 'TableOutlined', label: '数据集管理' },
   '/ai-report': { icon: 'ThunderboltOutlined', label: 'AI智能报表' },
+  '/pivot-designer': { icon: 'FundScreenOutlined', label: '交叉报表' },
   '/report': { icon: 'FileTextOutlined', label: '报表管理' },
   '/schedule': { icon: 'ScheduleOutlined', label: '调度管理' },
   '/screen': { icon: 'FundScreenOutlined', label: '可视化大屏' },
@@ -86,7 +87,7 @@ function buildMenuItemsFromPermissions(menus: MenuItem[], permissions: string[])
 function buildMenuFromPaths(paths: Set<string>) {
   const items: any[] = []
 
-  const topLevelPaths = ['/dashboard', '/datasource', '/dataset', '/ai-report', '/report', '/schedule', '/screen', '/embed/demo']
+  const topLevelPaths = ['/dashboard', '/datasource', '/dataset', '/ai-report', '/pivot-designer', '/report', '/schedule', '/screen', '/embed/demo']
   for (const path of topLevelPaths) {
     if (paths.has(path) && staticMenuConfig[path]) {
       const config = staticMenuConfig[path]
@@ -128,6 +129,7 @@ function buildFullMenu() {
     { key: '/datasource', icon: iconMap['DatabaseOutlined'], label: '数据源管理' },
     { key: '/dataset', icon: iconMap['TableOutlined'], label: '数据集管理' },
     { key: '/ai-report', icon: iconMap['ThunderboltOutlined'], label: 'AI智能报表' },
+    { key: '/pivot-designer', icon: iconMap['FundScreenOutlined'], label: '交叉报表' },
     { key: '/report', icon: iconMap['FileTextOutlined'], label: '报表管理' },
     { key: '/schedule', icon: iconMap['ScheduleOutlined'], label: '调度管理' },
     { key: '/screen', icon: iconMap['FundScreenOutlined'], label: '可视化大屏' },
@@ -205,6 +207,7 @@ const BasicLayout = () => {
       datasource: '数据源管理',
       dataset: '数据集管理',
       'ai-report': 'AI智能报表',
+      'pivot-designer': '交叉报表',
       report: '报表管理',
       schedule: '调度管理',
       screen: '可视化大屏',

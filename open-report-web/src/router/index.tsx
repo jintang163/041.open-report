@@ -7,6 +7,7 @@ import DashboardList from '@/pages/dashboard-list'
 import DashboardDesigner from '@/pages/dashboard-designer'
 import DashboardViewer from '@/pages/dashboard-viewer'
 import AiReportGenerator from '@/pages/ai-report'
+import PivotDesigner from '@/pages/pivot-designer'
 import UserManagement from '@/pages/system/user'
 import RoleManagement from '@/pages/system/role'
 import MenuManagement from '@/pages/system/menu'
@@ -79,6 +80,11 @@ const routes = [
             path: 'ai-report',
             element: withLoading(AiReportGenerator)(),
             meta: { title: 'AI智能报表', icon: 'ThunderboltOutlined' }
+          },
+          {
+            path: 'pivot-designer',
+            element: withLoading(PivotDesigner)(),
+            meta: { title: '交叉报表', icon: 'FundScreenOutlined' }
           },
           {
             path: 'report',
