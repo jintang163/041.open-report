@@ -1,6 +1,9 @@
 package com.openreport.admin.config;
 
 import com.alibaba.fastjson.JSON;
+import com.openreport.admin.service.SysMenuService;
+import com.openreport.admin.service.SysRoleService;
+import com.openreport.admin.service.SysUserService;
 import com.openreport.common.result.Result;
 import com.openreport.common.result.ResultCode;
 import com.openreport.common.utils.JwtUtils;
@@ -11,12 +14,25 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 public class JwtTokenInterceptor implements HandlerInterceptor {
 
     @Autowired
     private JwtUtils jwtUtils;
+
+    @Autowired
+    private SysMenuService sysMenuService;
+
+    @Autowired
+    private SysRoleService sysRoleService;
+
+    @Autowired
+    private SysUserService sysUserService;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -46,7 +62,32 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
         String username = jwtUtils.getUsernameFromToken(token);
         request.setAttribute("userId", userId);
         request.setAttribute("username", username);
+
+        com.openreport.admin.entity.SysUser user = sysUserService.getById(userId);
+        Long deptId = user != null ? user.getDeptId() : null;
+        List<com.openreport.admin.entity.SysRole> roles = sysRoleService.listByUserId(userId);
+        List<Long> roleIds = roles.stream().map(com.openreport.admin.entity.SysRole::getId).collect(Collectors.toList());
+        List<com.openreport.admin.entity.SysMenu> menus = sysMenuService.listByUserId(userId);
+        Set<String> permissions = new HashSet<>();
+        for (com.openreport.admin.entity.SysMenu menu : menus) {
+            if (StringUtils.isNotBlank(menu.getPerms())) {
+                permissions.add(menu.getPerms());
+            }
+        }
+        boolean isSuperAdmin = roles.stream()
+                .anyMatch(r -> "SUPER_ADMIN".equals(r.getRoleCode()));
+        if (isSuperAdmin) {
+            permissions.add("*");
+        }
+        SecurityContext securityContext = new SecurityContext(userId, username, deptId, permissions, roleIds);
+        SecurityContextHolder.set(securityContext);
+
         return true;
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
+        SecurityContextHolder.clear();
     }
 
     private void writeErrorResponse(HttpServletResponse response, ResultCode resultCode) throws Exception {

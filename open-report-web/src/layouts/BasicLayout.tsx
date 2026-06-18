@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Layout, Menu, Avatar, Dropdown, Breadcrumb, theme } from 'antd'
 import {
   DashboardOutlined,
@@ -16,10 +16,13 @@ import {
   ScheduleOutlined,
   LinkOutlined,
   FundScreenOutlined,
-  ThunderboltOutlined
+  ThunderboltOutlined,
+  LockOutlined,
+  EyeOutlined
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useUserStore } from '@/store/user'
+import type { MenuItem } from '@/types'
 
 const { Header, Sider, Content } = Layout
 
@@ -35,85 +38,132 @@ const iconMap: Record<string, any> = {
   ScheduleOutlined: <ScheduleOutlined />,
   LinkOutlined: <LinkOutlined />,
   FundScreenOutlined: <FundScreenOutlined />,
-  ThunderboltOutlined: <ThunderboltOutlined />
+  ThunderboltOutlined: <ThunderboltOutlined />,
+  SettingOutlined: <SettingOutlined />,
+  LockOutlined: <LockOutlined />,
+  EyeOutlined: <EyeOutlined />
 }
 
-const menuItems = [
-  {
-    key: '/dashboard',
-    icon: iconMap['DashboardOutlined'],
-    label: '仪表盘'
-  },
-  {
-    key: '/datasource',
-    icon: iconMap['DatabaseOutlined'],
-    label: '数据源管理'
-  },
-  {
-    key: '/dataset',
-    icon: iconMap['TableOutlined'],
-    label: '数据集管理'
-  },
-  {
-    key: '/ai-report',
-    icon: iconMap['ThunderboltOutlined'],
-    label: 'AI智能报表'
-  },
-  {
-    key: '/report',
-    icon: iconMap['FileTextOutlined'],
-    label: '报表管理'
-  },
-  {
-    key: '/schedule',
-    icon: iconMap['ScheduleOutlined'],
-    label: '调度管理'
-  },
-  {
-    key: '/screen',
-    icon: iconMap['FundScreenOutlined'],
-    label: '可视化大屏'
-  },
-  {
-    key: '/embed/demo',
-    icon: iconMap['LinkOutlined'],
-    label: '嵌入式集成'
-  },
-  {
-    key: 'system',
-    icon: <SettingOutlined />,
-    label: '系统管理',
-    children: [
-      {
-        key: '/system/user',
-        icon: iconMap['UserOutlined'],
-        label: '用户管理'
-      },
-      {
-        key: '/system/role',
-        icon: iconMap['TeamOutlined'],
-        label: '角色管理'
-      },
-      {
-        key: '/system/menu',
-        icon: iconMap['MenuOutlined'],
-        label: '菜单管理'
-      }
-    ]
+const staticMenuConfig: Record<string, { icon: string; label: string }> = {
+  '/dashboard': { icon: 'DashboardOutlined', label: '仪表盘' },
+  '/datasource': { icon: 'DatabaseOutlined', label: '数据源管理' },
+  '/dataset': { icon: 'TableOutlined', label: '数据集管理' },
+  '/ai-report': { icon: 'ThunderboltOutlined', label: 'AI智能报表' },
+  '/report': { icon: 'FileTextOutlined', label: '报表管理' },
+  '/schedule': { icon: 'ScheduleOutlined', label: '调度管理' },
+  '/screen': { icon: 'FundScreenOutlined', label: '可视化大屏' },
+  '/embed/demo': { icon: 'LinkOutlined', label: '嵌入式集成' },
+  '/system/user': { icon: 'UserOutlined', label: '用户管理' },
+  '/system/role': { icon: 'TeamOutlined', label: '角色管理' },
+  '/system/menu': { icon: 'MenuOutlined', label: '菜单管理' },
+  '/system/row-security': { icon: 'SafetyCertificateOutlined', label: '行级安全' },
+  '/system/field-permission': { icon: 'LockOutlined', label: '字段权限' }
+}
+
+const systemSubMenus = ['/system/user', '/system/role', '/system/menu', '/system/row-security', '/system/field-permission']
+
+function buildMenuItemsFromPermissions(menus: MenuItem[], permissions: string[]) {
+  if (permissions.includes('*')) {
+    return buildFullMenu()
   }
-]
+
+  const permittedPaths = new Set<string>()
+  const addPermittedPaths = (menuList: MenuItem[]) => {
+    for (const menu of menuList) {
+      if (menu.path) {
+        permittedPaths.add(menu.path)
+      }
+      if (menu.children) {
+        addPermittedPaths(menu.children)
+      }
+    }
+  }
+  addPermittedPaths(menus)
+
+  const allPermittedPaths = new Set([...permittedPaths, ...systemSubMenus])
+
+  return buildMenuFromPaths(allPermittedPaths)
+}
+
+function buildMenuFromPaths(paths: Set<string>) {
+  const items: any[] = []
+
+  const topLevelPaths = ['/dashboard', '/datasource', '/dataset', '/ai-report', '/report', '/schedule', '/screen', '/embed/demo']
+  for (const path of topLevelPaths) {
+    if (paths.has(path) && staticMenuConfig[path]) {
+      const config = staticMenuConfig[path]
+      items.push({
+        key: path,
+        icon: iconMap[config.icon],
+        label: config.label
+      })
+    }
+  }
+
+  const systemChildren: any[] = []
+  for (const path of systemSubMenus) {
+    if (paths.has(path) && staticMenuConfig[path]) {
+      const config = staticMenuConfig[path]
+      systemChildren.push({
+        key: path,
+        icon: iconMap[config.icon],
+        label: config.label
+      })
+    }
+  }
+
+  if (systemChildren.length > 0) {
+    items.push({
+      key: 'system',
+      icon: <SettingOutlined />,
+      label: '系统管理',
+      children: systemChildren
+    })
+  }
+
+  return items
+}
+
+function buildFullMenu() {
+  return [
+    { key: '/dashboard', icon: iconMap['DashboardOutlined'], label: '仪表盘' },
+    { key: '/datasource', icon: iconMap['DatabaseOutlined'], label: '数据源管理' },
+    { key: '/dataset', icon: iconMap['TableOutlined'], label: '数据集管理' },
+    { key: '/ai-report', icon: iconMap['ThunderboltOutlined'], label: 'AI智能报表' },
+    { key: '/report', icon: iconMap['FileTextOutlined'], label: '报表管理' },
+    { key: '/schedule', icon: iconMap['ScheduleOutlined'], label: '调度管理' },
+    { key: '/screen', icon: iconMap['FundScreenOutlined'], label: '可视化大屏' },
+    { key: '/embed/demo', icon: iconMap['LinkOutlined'], label: '嵌入式集成' },
+    {
+      key: 'system',
+      icon: <SettingOutlined />,
+      label: '系统管理',
+      children: [
+        { key: '/system/user', icon: iconMap['UserOutlined'], label: '用户管理' },
+        { key: '/system/role', icon: iconMap['TeamOutlined'], label: '角色管理' },
+        { key: '/system/menu', icon: iconMap['MenuOutlined'], label: '菜单管理' },
+        { key: '/system/row-security', icon: iconMap['SafetyCertificateOutlined'], label: '行级安全' },
+        { key: '/system/field-permission', icon: iconMap['LockOutlined'], label: '字段权限' }
+      ]
+    }
+  ]
+}
 
 const BasicLayout = () => {
   const [collapsed, setCollapsed] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
-  const { userInfo, logout } = useUserStore()
+  const { userInfo, logout, permissions, menus } = useUserStore()
   const {
     token: { colorBgContainer, borderRadiusLG }
   } = theme.useToken()
 
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [openKeys, setOpenKeys] = useState<string[]>([])
+
+  const menuItems = useMemo(() => {
+    return buildMenuItemsFromPermissions(menus || [], permissions || [])
+  }, [menus, permissions])
 
   useEffect(() => {
     const pathname = location.pathname
@@ -167,7 +217,9 @@ const BasicLayout = () => {
       role: '角色管理',
       menu: '菜单管理',
       embed: '嵌入式集成',
-      demo: '集成示例'
+      demo: '集成示例',
+      'row-security': '行级安全',
+      'field-permission': '字段权限'
     }
     const items = [{ title: '首页' }]
     let url = ''

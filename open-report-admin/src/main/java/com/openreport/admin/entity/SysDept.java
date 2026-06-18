@@ -11,37 +11,31 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("sys_user")
-public class SysUser implements Serializable {
+@TableName("sys_dept")
+public class SysDept implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    @TableField("username")
-    private String username;
+    @TableField("parent_id")
+    private Long parentId;
 
-    @TableField("password")
-    private String password;
+    @TableField("dept_name")
+    private String deptName;
 
-    @TableField("nickname")
-    private String nickname;
+    @TableField("dept_code")
+    private String deptCode;
 
-    @TableField("email")
-    private String email;
+    @TableField("leader")
+    private String leader;
 
-    @TableField("phone")
-    private String phone;
-
-    @TableField("avatar")
-    private String avatar;
+    @TableField("sort_order")
+    private Integer sortOrder;
 
     @TableField("status")
     private Integer status;
-
-    @TableField("dept_id")
-    private Long deptId;
 
     @TableField("create_time")
     private LocalDateTime createTime;

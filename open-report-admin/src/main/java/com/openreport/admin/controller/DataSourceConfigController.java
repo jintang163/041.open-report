@@ -1,6 +1,7 @@
 package com.openreport.admin.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.openreport.admin.config.RequirePerms;
 import com.openreport.admin.entity.DataSourceConfig;
 import com.openreport.admin.service.DataSourceConfigService;
 import com.openreport.common.result.Result;
@@ -46,6 +47,7 @@ public class DataSourceConfigController {
 
     @ApiOperation("新增数据源")
     @PostMapping
+    @RequirePerms("data:source:add")
     public Result<Void> add(@RequestBody DataSourceConfig config, @RequestAttribute("userId") Long userId) {
         config.setCreateBy(userId);
         config.setUpdateBy(userId);
@@ -61,6 +63,7 @@ public class DataSourceConfigController {
 
     @ApiOperation("更新数据源")
     @PutMapping
+    @RequirePerms("data:source:edit")
     public Result<Void> update(@RequestBody DataSourceConfig config, @RequestAttribute("userId") Long userId) {
         config.setUpdateBy(userId);
         config.setUpdateTime(LocalDateTime.now());
@@ -70,6 +73,7 @@ public class DataSourceConfigController {
 
     @ApiOperation("删除数据源")
     @DeleteMapping("/{id}")
+    @RequirePerms("data:source:remove")
     public Result<Void> delete(@PathVariable Long id) {
         dataSourceConfigService.removeById(id);
         return Result.success();

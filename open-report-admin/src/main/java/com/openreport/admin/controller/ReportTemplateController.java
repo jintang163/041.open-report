@@ -1,6 +1,7 @@
 package com.openreport.admin.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.openreport.admin.config.RequirePerms;
 import com.openreport.admin.entity.ReportTemplate;
 import com.openreport.admin.service.ReportTemplateService;
 import com.openreport.common.result.Result;
@@ -44,6 +45,7 @@ public class ReportTemplateController {
 
     @ApiOperation("新增报表模板")
     @PostMapping
+    @RequirePerms("report:designer:add")
     public Result<Void> add(@RequestBody ReportTemplate template, @RequestAttribute("userId") Long userId) {
         template.setCreateBy(userId);
         template.setUpdateBy(userId);
@@ -59,6 +61,7 @@ public class ReportTemplateController {
 
     @ApiOperation("更新报表模板")
     @PutMapping
+    @RequirePerms("report:designer:edit")
     public Result<Void> update(@RequestBody ReportTemplate template, @RequestAttribute("userId") Long userId) {
         template.setUpdateBy(userId);
         template.setUpdateTime(LocalDateTime.now());
@@ -68,6 +71,7 @@ public class ReportTemplateController {
 
     @ApiOperation("删除报表模板")
     @DeleteMapping("/{id}")
+    @RequirePerms("report:designer:remove")
     public Result<Void> delete(@PathVariable Long id) {
         reportTemplateService.removeById(id);
         return Result.success();

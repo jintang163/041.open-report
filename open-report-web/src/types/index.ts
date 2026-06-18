@@ -7,8 +7,31 @@ export interface User {
   phone?: string
   avatar?: string
   status?: number
+  deptId?: number
   createTime?: string
   updateTime?: string
+  roles?: RoleInfo[]
+  permissions?: string[]
+  menus?: MenuItem[]
+}
+
+export interface RoleInfo {
+  id: number
+  roleName: string
+  roleCode: string
+}
+
+export interface MenuItem {
+  id: number
+  parentId: number
+  name: string
+  path?: string
+  component?: string
+  perms?: string
+  icon?: string
+  menuType: string
+  sortOrder?: number
+  children?: MenuItem[]
 }
 
 export interface LoginParams {
@@ -336,4 +359,39 @@ export interface EditableRowData {
   currentData: Record<string, any>
   cells: Record<string, EditableCellConfig>
   dirty: boolean
+}
+
+export interface RowSecurityRule {
+  id?: number
+  roleId: number
+  tableName: string
+  filterExpression: string
+  description?: string
+  status?: number
+  createTime?: string
+  updateTime?: string
+}
+
+export interface FieldPermissionRule {
+  id?: number
+  roleId: number
+  tableName: string
+  fieldName: string
+  permissionType: 'HIDDEN' | 'MASKED'
+  description?: string
+  status?: number
+  createTime?: string
+  updateTime?: string
+}
+
+export interface SysDept {
+  id?: number
+  parentId: number
+  deptName: string
+  deptCode: string
+  leader?: string
+  sortOrder?: number
+  status?: number
+  createTime?: string
+  updateTime?: string
 }

@@ -2,6 +2,7 @@ package com.openreport.admin.controller;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
+import com.openreport.admin.config.RequirePerms;
 import com.openreport.admin.entity.DataSet;
 import com.openreport.admin.entity.ReportTemplate;
 import com.openreport.admin.service.DataSetService;
@@ -238,6 +239,7 @@ public class ReportExecuteController {
 
     @ApiOperation("导出报表数据")
     @PostMapping("/export/{templateId}")
+    @RequirePerms("report:manage:export")
     public Result<Map<String, Object>> exportReport(
             @PathVariable Long templateId,
             @RequestParam(defaultValue = "excel") String exportType,

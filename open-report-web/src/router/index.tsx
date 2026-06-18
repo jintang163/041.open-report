@@ -10,6 +10,8 @@ import AiReportGenerator from '@/pages/ai-report'
 import UserManagement from '@/pages/system/user'
 import RoleManagement from '@/pages/system/role'
 import MenuManagement from '@/pages/system/menu'
+import RowSecurityManagement from '@/pages/system/row-security'
+import FieldPermissionManagement from '@/pages/system/field-permission'
 import DatasourceManagement from '@/pages/datasource'
 import DatasetManagement from '@/pages/dataset'
 import ReportManagement from '@/pages/report'
@@ -127,6 +129,16 @@ const routes = [
             path: 'system/menu',
             element: withLoading(MenuManagement)(),
             meta: { title: '菜单管理', icon: 'MenuOutlined', parent: '系统管理' }
+          },
+          {
+            path: 'system/row-security',
+            element: withLoading(RowSecurityManagement)(),
+            meta: { title: '行级安全', icon: 'SafetyCertificateOutlined', parent: '系统管理' }
+          },
+          {
+            path: 'system/field-permission',
+            element: withLoading(FieldPermissionManagement)(),
+            meta: { title: '字段权限', icon: 'LockOutlined', parent: '系统管理' }
           },
           {
             path: 'embed/demo',

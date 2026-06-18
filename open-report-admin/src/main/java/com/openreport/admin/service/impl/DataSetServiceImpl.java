@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.openreport.admin.entity.DataSourceConfig;
 import com.openreport.admin.entity.DataSet;
 import com.openreport.admin.mapper.DataSetMapper;
+import com.openreport.admin.service.DataSecurityService;
 import com.openreport.admin.service.DataSourceConfigService;
 import com.openreport.admin.service.DataSetService;
 import org.apache.commons.lang3.StringUtils;
@@ -24,6 +25,9 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
 
     @Autowired
     private DataSourceConfigService dataSourceConfigService;
+
+    @Autowired
+    private DataSecurityService dataSecurityService;
 
     @Override
     public Page<DataSet> pageList(Integer pageNum, Integer pageSize, String setName, Long dsId) {
@@ -69,6 +73,7 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
             result.put("message", "SQL不能为空");
             return result;
         }
+        sql = dataSecurityService.applyRowSecurity(sql, dataSetId);
         if (limit != null && limit > 0) {
             sql = sql + " LIMIT " + limit;
         }
@@ -80,7 +85,7 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
             connection = DriverManager.getConnection(dsConfig.getJdbcUrl(), dsConfig.getUsername(), dsConfig.getPassword());
             ps = connection.prepareStatement(sql);
             if (params != null && !params.isEmpty()) {
-                List<Map<String, Object>> paramList = parseParamsFromSql(sql);
+                List<Map<String, Object>> paramList = parseParamsFromSql(dataSet.getSqlText());
                 int index = 1;
                 for (Map<String, Object> param : paramList) {
                     String paramName = param.get("name").toString();
@@ -107,6 +112,9 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
                 }
                 rows.add(row);
             }
+            String tableName = extractMainTableName(dataSet.getSqlText());
+            rows = dataSecurityService.filterHiddenFields(rows, tableName);
+            rows = dataSecurityService.applyFieldMasking(rows, tableName);
             result.put("success", true);
             result.put("columns", columns);
             result.put("rows", rows);
@@ -153,6 +161,8 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
             return result;
         }
 
+        sql = dataSecurityService.applyRowSecurity(sql, dataSetId);
+
         String countSql = "SELECT COUNT(*) FROM (" + sql + ") t_cnt";
         String pageSql = sql + " LIMIT " + pageSize + " OFFSET " + ((pageNum - 1) * pageSize);
 
@@ -166,7 +176,7 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
             long total = 0;
             try {
                 ps = connection.prepareStatement(countSql);
-                setParams(ps, sql, params);
+                setParams(ps, dataSet.getSqlText(), params);
                 rs = ps.executeQuery();
                 if (rs.next()) {
                     total = rs.getLong(1);
@@ -179,7 +189,7 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
             }
 
             ps = connection.prepareStatement(pageSql);
-            setParams(ps, sql, params);
+            setParams(ps, dataSet.getSqlText(), params);
             rs = ps.executeQuery();
             ResultSetMetaData metaData = rs.getMetaData();
             int columnCount = metaData.getColumnCount();
@@ -200,6 +210,10 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
                 }
                 rows.add(row);
             }
+
+            String tableName = extractMainTableName(dataSet.getSqlText());
+            rows = dataSecurityService.filterHiddenFields(rows, tableName);
+            rows = dataSecurityService.applyFieldMasking(rows, tableName);
 
             result.put("success", true);
             result.put("columns", columns);
@@ -245,6 +259,7 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
         if (StringUtils.isBlank(sql)) {
             return -1L;
         }
+        sql = dataSecurityService.applyRowSecurity(sql, dataSetId);
         String countSql = "SELECT COUNT(*) FROM (" + sql + ") t_cnt";
         Connection connection = null;
         PreparedStatement ps = null;
@@ -289,6 +304,8 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
         if (StringUtils.isBlank(sql)) {
             return;
         }
+        sql = dataSecurityService.applyRowSecurity(sql, dataSetId);
+        String tableName = extractMainTableName(dataSet.getSqlText());
         Connection connection = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
@@ -300,7 +317,7 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
                 ps.setFetchSize(Integer.MIN_VALUE);
             } catch (Exception ignored) {
             }
-            setParams(ps, sql, params);
+            setParams(ps, dataSet.getSqlText(), params);
             rs = ps.executeQuery();
             ResultSetMetaData metaData = rs.getMetaData();
             int columnCount = metaData.getColumnCount();
@@ -318,13 +335,17 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
                 batch.add(row);
                 count++;
                 if (count >= batchSize) {
-                    batchCallback.accept(new ArrayList<>(batch));
+                    List<Map<String, Object>> filteredBatch = dataSecurityService.filterHiddenFields(batch, tableName);
+                    filteredBatch = dataSecurityService.applyFieldMasking(filteredBatch, tableName);
+                    batchCallback.accept(new ArrayList<>(filteredBatch));
                     batch.clear();
                     count = 0;
                 }
             }
             if (!batch.isEmpty()) {
-                batchCallback.accept(batch);
+                List<Map<String, Object>> filteredBatch = dataSecurityService.filterHiddenFields(batch, tableName);
+                filteredBatch = dataSecurityService.applyFieldMasking(filteredBatch, tableName);
+                batchCallback.accept(filteredBatch);
             }
         } catch (Exception e) {
             log.error("Stream batch data failed for dataSetId: {}", dataSetId, e);
@@ -373,5 +394,17 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
                 }
             }
         }
+    }
+
+    private String extractMainTableName(String sql) {
+        if (StringUtils.isBlank(sql)) {
+            return "*";
+        }
+        Pattern tablePattern = Pattern.compile("(?i)\\bFROM\\s+([a-zA-Z_][a-zA-Z0-9_]*)");
+        Matcher matcher = tablePattern.matcher(sql);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return "*";
     }
 }

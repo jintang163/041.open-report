@@ -9,7 +9,7 @@ import { LoginParams } from '@/types'
 const Login = () => {
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
-  const { token, setToken, setUserInfo } = useUserStore()
+  const { token, setToken, setUserInfo, setPermissions, setMenus } = useUserStore()
 
   if (token) {
     return <Navigate to="/dashboard" replace />
@@ -20,7 +20,18 @@ const Login = () => {
     try {
       const result = await login(values)
       setToken(result.token)
-      setUserInfo(result.user)
+      setUserInfo({
+        id: result.userId,
+        username: result.username,
+        nickname: result.nickname,
+        avatar: result.avatar,
+        deptId: result.deptId,
+        roles: result.roles,
+        permissions: result.permissions,
+        menus: result.menus
+      })
+      setPermissions(result.permissions || [])
+      setMenus(result.menus || [])
       message.success('登录成功')
       navigate('/dashboard')
     } catch (error: any) {
