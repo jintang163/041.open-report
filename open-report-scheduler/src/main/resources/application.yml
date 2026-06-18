@@ -37,6 +37,24 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       auto-offset-reset: earliest
+  mail:
+    host: smtp.example.com
+    port: 465
+    username: noreply@example.com
+    password: your-password
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 3000
+          writetimeout: 5000
+        transport:
+          protocol: smtp
 
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml
@@ -69,3 +87,8 @@ report:
       days: 30
   output:
     path: ./output
+  email:
+    from: noreply@example.com
+    senderName: Open Report
+  retry:
+    max-delay-minutes: 60

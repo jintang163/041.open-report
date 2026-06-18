@@ -23,9 +23,10 @@ public class ReportLogController {
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
             @RequestParam(required = false) Long reportId,
+            @RequestParam(required = false) Long scheduleId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String executeType) {
-        return Result.success(reportLogService.pageList(pageNum, pageSize, reportId, status, executeType));
+        return Result.success(reportLogService.pageList(pageNum, pageSize, reportId, scheduleId, status, executeType));
     }
 
     @ApiOperation("获取日志详情")

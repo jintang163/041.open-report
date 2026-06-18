@@ -14,11 +14,14 @@ import java.time.LocalDateTime;
 public class ReportLogServiceImpl extends ServiceImpl<ReportLogMapper, ReportLog> implements ReportLogService {
 
     @Override
-    public Page<ReportLog> pageList(Integer pageNum, Integer pageSize, Long reportId, String status, String executeType) {
+    public Page<ReportLog> pageList(Integer pageNum, Integer pageSize, Long reportId, Long scheduleId, String status, String executeType) {
         Page<ReportLog> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<ReportLog> wrapper = new LambdaQueryWrapper<>();
         if (reportId != null) {
             wrapper.eq(ReportLog::getReportId, reportId);
+        }
+        if (scheduleId != null) {
+            wrapper.eq(ReportLog::getScheduleId, scheduleId);
         }
         if (status != null && !status.isEmpty()) {
             wrapper.eq(ReportLog::getStatus, status);
@@ -31,12 +34,14 @@ public class ReportLogServiceImpl extends ServiceImpl<ReportLogMapper, ReportLog
     }
 
     @Override
-    public ReportLog createLog(Long reportId, String executeType, String params) {
+    public ReportLog createLog(Long reportId, Long scheduleId, String executeType, String params, Integer retryCount) {
         ReportLog log = new ReportLog();
         log.setReportId(reportId);
+        log.setScheduleId(scheduleId);
         log.setExecuteType(executeType);
         log.setParams(params);
         log.setStatus("RUNNING");
+        log.setRetryCount(retryCount == null ? 0 : retryCount);
         log.setCreateTime(LocalDateTime.now());
         log.setDeleted(0);
         save(log);

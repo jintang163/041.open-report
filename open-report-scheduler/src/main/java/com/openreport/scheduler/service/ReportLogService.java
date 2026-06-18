@@ -8,9 +8,9 @@ import java.time.LocalDateTime;
 
 public interface ReportLogService extends IService<ReportLog> {
 
-    Page<ReportLog> pageList(Integer pageNum, Integer pageSize, Long reportId, String status, String executeType);
+    Page<ReportLog> pageList(Integer pageNum, Integer pageSize, Long reportId, Long scheduleId, String status, String executeType);
 
-    ReportLog createLog(Long reportId, String executeType, String params);
+    ReportLog createLog(Long reportId, Long scheduleId, String executeType, String params, Integer retryCount);
 
     void updateLogSuccess(Long logId, Long costTime, String outputPath);
 

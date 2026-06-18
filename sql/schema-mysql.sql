@@ -181,11 +181,17 @@ CREATE TABLE `report_template` (
 DROP TABLE IF EXISTS `report_schedule`;
 CREATE TABLE `report_schedule` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `name` varchar(128) NOT NULL COMMENT '任务名称',
   `report_id` bigint NOT NULL COMMENT '报表ID',
   `cron_expression` varchar(128) NOT NULL COMMENT 'Cron表达式',
   `params` json DEFAULT NULL COMMENT '执行参数(JSON)',
   `output_type` varchar(32) NOT NULL COMMENT '输出类型 PDF/EXCEL/IMAGE/EMAIL',
   `email_list` varchar(1024) DEFAULT NULL COMMENT '邮件收件人列表(逗号分隔)',
+  `email_cc_list` varchar(1024) DEFAULT NULL COMMENT '邮件抄送列表(逗号分隔)',
+  `email_subject` varchar(256) DEFAULT NULL COMMENT '邮件主题',
+  `email_content` text COMMENT '邮件正文',
+  `retry_count` int NOT NULL DEFAULT 0 COMMENT '已重试次数',
+  `max_retry_count` int NOT NULL DEFAULT 3 COMMENT '最大重试次数',
   `status` tinyint NOT NULL DEFAULT 1 COMMENT '状态 0-停用 1-启用',
   `last_execute_time` datetime DEFAULT NULL COMMENT '上次执行时间',
   `next_execute_time` datetime DEFAULT NULL COMMENT '下次执行时间',
@@ -204,17 +210,20 @@ CREATE TABLE `report_schedule` (
 DROP TABLE IF EXISTS `report_log`;
 CREATE TABLE `report_log` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `schedule_id` bigint DEFAULT NULL COMMENT '调度任务ID',
   `report_id` bigint NOT NULL COMMENT '报表ID',
-  `execute_type` varchar(32) NOT NULL COMMENT '执行类型 MANUAL-手动 SCHEDULE-定时',
+  `execute_type` varchar(32) NOT NULL COMMENT '执行类型 MANUAL-手动 SCHEDULE-定时 RETRY-重试',
   `params` json DEFAULT NULL COMMENT '执行参数(JSON)',
-  `status` varchar(32) NOT NULL COMMENT '执行状态 SUCCESS-成功 FAIL-失败',
+  `status` varchar(32) NOT NULL COMMENT '执行状态 RUNNING-执行中 SUCCESS-成功 FAIL-失败',
+  `retry_count` int NOT NULL DEFAULT 0 COMMENT '重试次数',
   `cost_time` bigint DEFAULT NULL COMMENT '耗时(毫秒)',
   `error_msg` text COMMENT '错误信息',
   `output_path` varchar(512) DEFAULT NULL COMMENT '输出文件路径',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `deleted` tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除 0-未删除 1-已删除',
   PRIMARY KEY (`id`),
-  KEY `idx_report_id` (`report_id`)
+  KEY `idx_report_id` (`report_id`),
+  KEY `idx_schedule_id` (`schedule_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='报表执行日志表';
 
 -- ----------------------------

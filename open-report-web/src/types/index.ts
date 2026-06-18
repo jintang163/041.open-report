@@ -114,21 +114,39 @@ export interface ScheduleJob {
   name: string
   reportId: number
   reportName?: string
-  cron: string
-  status?: number
+  cronExpression?: string
+  cron?: string
   params?: string
+  outputType?: 'EXCEL' | 'PDF' | 'EMAIL'
+  emailList?: string
+  emailCcList?: string
+  emailSubject?: string
+  emailContent?: string
+  retryCount?: number
+  maxRetryCount?: number
+  status?: number
   createTime?: string
   updateTime?: string
   lastExecuteTime?: string
+  nextExecuteTime?: string
 }
 
 export interface ScheduleLog {
   id?: number
-  jobId: number
-  status: number
+  scheduleId?: number
+  jobId?: number
+  reportId?: number
+  executeType?: 'MANUAL' | 'SCHEDULE' | 'RETRY'
+  params?: string
+  status?: 'RUNNING' | 'SUCCESS' | 'FAIL' | number
   message?: string
-  executeTime?: string
+  retryCount?: number
+  costTime?: number
   duration?: number
+  errorMsg?: string
+  outputPath?: string
+  executeTime?: string
+  createTime?: string
 }
 
 export interface DataSetParam {

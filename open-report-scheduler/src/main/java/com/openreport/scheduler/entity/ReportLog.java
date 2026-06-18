@@ -19,6 +19,9 @@ public class ReportLog implements Serializable {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    @TableField("schedule_id")
+    private Long scheduleId;
+
     @TableField("report_id")
     private Long reportId;
 
@@ -30,6 +33,9 @@ public class ReportLog implements Serializable {
 
     @TableField("status")
     private String status;
+
+    @TableField("retry_count")
+    private Integer retryCount;
 
     @TableField("cost_time")
     private Long costTime;

@@ -58,6 +58,10 @@ public class ReportExecuteJob {
         message.put("params", schedule.getParams());
         message.put("outputType", schedule.getOutputType());
         message.put("emailList", schedule.getEmailList());
+        message.put("emailCcList", schedule.getEmailCcList());
+        message.put("emailSubject", schedule.getEmailSubject());
+        message.put("emailContent", schedule.getEmailContent());
+        message.put("retryCount", 0);
         message.put("executeType", "SCHEDULE");
         kafkaTemplate.send("report-execute-topic", com.alibaba.fastjson.JSON.toJSONString(message));
         schedule.setLastExecuteTime(LocalDateTime.now());

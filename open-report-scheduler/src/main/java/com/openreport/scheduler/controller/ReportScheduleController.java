@@ -41,6 +41,12 @@ public class ReportScheduleController {
         if (schedule.getStatus() == null) {
             schedule.setStatus(1);
         }
+        if (schedule.getRetryCount() == null) {
+            schedule.setRetryCount(0);
+        }
+        if (schedule.getMaxRetryCount() == null) {
+            schedule.setMaxRetryCount(3);
+        }
         schedule.setCreateTime(LocalDateTime.now());
         schedule.setUpdateTime(LocalDateTime.now());
         schedule.setDeleted(0);

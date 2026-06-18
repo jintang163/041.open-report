@@ -19,6 +19,9 @@ public class ReportSchedule extends BaseEntity implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    @TableField("name")
+    private String name;
+
     @TableField("report_id")
     private Long reportId;
 
@@ -33,6 +36,21 @@ public class ReportSchedule extends BaseEntity implements Serializable {
 
     @TableField("email_list")
     private String emailList;
+
+    @TableField("email_cc_list")
+    private String emailCcList;
+
+    @TableField("email_subject")
+    private String emailSubject;
+
+    @TableField("email_content")
+    private String emailContent;
+
+    @TableField("retry_count")
+    private Integer retryCount;
+
+    @TableField("max_retry_count")
+    private Integer maxRetryCount;
 
     @TableField("status")
     private Integer status;
