@@ -110,3 +110,14 @@ open-report:
   dingtalk:
     enabled: true
     timeout: 10000
+  cache:
+    enabled: true
+    default-ttl-seconds: 43200
+    auto-cache-on-miss: true
+    warmup:
+      enabled: true
+      hot-threshold: 50
+      stats-window-days: 7
+      max-hot-reports: 50
+      low-peak-start-hour: 2
+      low-peak-end-hour: 5

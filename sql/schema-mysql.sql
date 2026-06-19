@@ -364,4 +364,75 @@ CREATE TABLE `report_comment_like` (
   KEY `idx_user_id` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='评论点赞表';
 
+-- ----------------------------
+-- 报表访问日志表
+-- ----------------------------
+DROP TABLE IF EXISTS `report_access_log`;
+CREATE TABLE `report_access_log` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `template_id` bigint NOT NULL COMMENT '报表模板ID',
+  `template_name` varchar(200) DEFAULT NULL COMMENT '报表模板名称',
+  `user_id` bigint DEFAULT NULL COMMENT '访问用户ID',
+  `username` varchar(64) DEFAULT NULL COMMENT '访问用户名',
+  `access_date` date NOT NULL COMMENT '访问日期',
+  `access_hour` int DEFAULT NULL COMMENT '访问小时(0-23)',
+  `params_hash` varchar(32) DEFAULT NULL COMMENT '请求参数哈希',
+  `response_time_ms` bigint DEFAULT NULL COMMENT '响应耗时(毫秒)',
+  `hit_cache` tinyint DEFAULT 0 COMMENT '是否命中缓存: 1-命中 0-未命中',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_template_date` (`template_id`, `access_date`),
+  KEY `idx_access_date` (`access_date`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='报表访问日志表';
+
+-- ----------------------------
+-- 缓存预热配置表
+-- ----------------------------
+DROP TABLE IF EXISTS `report_cache_warmup_config`;
+CREATE TABLE `report_cache_warmup_config` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `config_name` varchar(100) DEFAULT NULL COMMENT '配置名称',
+  `enabled` tinyint DEFAULT 1 COMMENT '是否启用: 1-启用 0-禁用',
+  `hot_threshold` int DEFAULT 50 COMMENT '热报表访问阈值(次/窗口)',
+  `stats_window_days` int DEFAULT 7 COMMENT '访问统计窗口(天)',
+  `max_hot_reports` int DEFAULT 50 COMMENT '最大预热报表数',
+  `low_peak_start_hour` int DEFAULT 2 COMMENT '低峰期开始时间(小时)',
+  `low_peak_end_hour` int DEFAULT 5 COMMENT '低峰期结束时间(小时)',
+  `cache_ttl_seconds` bigint DEFAULT 43200 COMMENT '缓存TTL(秒, 默认12小时)',
+  `default_params_json` text COMMENT '默认预热参数JSON',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint DEFAULT 0 COMMENT '逻辑删除: 1-删除 0-未删除',
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='缓存预热配置表';
+
+-- ----------------------------
+-- 缓存统计表
+-- ----------------------------
+DROP TABLE IF EXISTS `report_cache_stats`;
+CREATE TABLE `report_cache_stats` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `template_id` bigint NOT NULL COMMENT '报表模板ID',
+  `template_name` varchar(200) DEFAULT NULL COMMENT '报表模板名称',
+  `stats_date` date NOT NULL COMMENT '统计日期',
+  `total_requests` bigint DEFAULT 0 COMMENT '总请求数',
+  `cache_hits` bigint DEFAULT 0 COMMENT '缓存命中数',
+  `cache_misses` bigint DEFAULT 0 COMMENT '缓存未命中数',
+  `warmup_count` bigint DEFAULT 0 COMMENT '预热次数',
+  `avg_response_time_ms` bigint DEFAULT 0 COMMENT '平均响应时间(毫秒)',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_template_date` (`template_id`, `stats_date`),
+  KEY `idx_stats_date` (`stats_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='缓存统计表';
+
+-- ----------------------------
+-- 缓存预热默认配置
+-- ----------------------------
+INSERT INTO `report_cache_warmup_config` (`config_name`, `enabled`, `hot_threshold`, `stats_window_days`, `max_hot_reports`, `low_peak_start_hour`, `low_peak_end_hour`, `cache_ttl_seconds`, `default_params_json`)
+VALUES ('默认缓存预热配置', 1, 50, 7, 50, 2, 5, 43200, '{}');
+
 SET FOREIGN_KEY_CHECKS = 1;
