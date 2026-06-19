@@ -30,7 +30,8 @@ import {
   ClockCircleOutlined,
   DownOutlined,
   ShareAltOutlined,
-  WarningOutlined
+  WarningOutlined,
+  CommentOutlined
 } from '@ant-design/icons'
 import ParamPanel from './components/ParamPanel'
 import ReportTable from './components/ReportTable'
@@ -45,8 +46,10 @@ import SnapshotCompareModal from './components/SnapshotCompareModal'
 import LineageTreePanel from './components/LineageTreePanel'
 import LineageTraceModal from './components/LineageTraceModal'
 import ImpactAnalysisModal from './components/ImpactAnalysisModal'
+import CommentPanel from './components/CommentPanel'
 import { usePreviewStore, SnapshotMode } from './store/preview'
 import { useWritebackStore } from './store/writeback'
+import { useCommentStore } from './store/comment'
 import { getReportById, compareSnapshotWithRealtime } from '@/api/report'
 import { ReportTemplate, SnapshotComparisonResult } from '@/types'
 import { isMobileDevice, formatParamValue } from './utils/report'
@@ -78,6 +81,22 @@ const PreviewPage: React.FC = () => {
   const [traceModalVisible, setTraceModalVisible] = useState(false)
   const [traceField, setTraceField] = useState<{ field: string; title?: string } | null>(null)
   const [impactModalVisible, setImpactModalVisible] = useState(false)
+
+  const [commentVisible, setCommentVisible] = useState(false)
+
+  const commentStore = useCommentStore()
+  const comments = commentStore.comments
+  const commentTotalCount = commentStore.totalCount
+  const commentLoading = commentStore.loading
+  const loadComments = commentStore.loadComments
+  const createComment = commentStore.createComment
+  const createReply = commentStore.createReply
+  const removeComment = commentStore.removeComment
+  const toggleCommentLike = commentStore.toggleLike
+  const loadCommentCount = commentStore.loadCommentCount
+  const loadCellRefs = commentStore.loadCellRefs
+  const loadChartIds = commentStore.loadChartIds
+  const resetComment = commentStore.reset
 
   const setReportId = usePreviewStore((state) => state.setReportId)
   const setReportName = usePreviewStore((state) => state.setReportName)
@@ -118,6 +137,14 @@ const PreviewPage: React.FC = () => {
   const { isConnected, shouldRefresh, acknowledgeRefresh, lastMessage } = useReportWebSocket(
     id,
     () => {
+      if (lastMessage?.type === 'REPORT_COMMENT_CHANGED' || lastMessage?.type === 'REPORT_COMMENT_MENTION') {
+        if (id) {
+          loadComments(Number(id))
+          loadCommentCount(Number(id))
+        }
+        acknowledgeRefresh()
+        return
+      }
       if (autoRefresh && !refreshLockRef.current) {
         refreshLockRef.current = true
         message.info('检测到数据变更，正在自动刷新...')
@@ -210,6 +237,60 @@ const PreviewPage: React.FC = () => {
     navigate(`/preview/${reportId}`)
   }
 
+  const handleAddComment = async (content: string, mentionUserIds: string) => {
+    try {
+      await createComment({
+        templateId: Number(id),
+        templateName: reportInfo?.name,
+        cellRef: commentStore.selectedCellRef || undefined,
+        chartId: commentStore.selectedChartId || undefined,
+        snapshotVersion: commentStore.snapshotVersion || undefined,
+        content,
+        mentionUserIds
+      })
+      message.success('评论已添加')
+    } catch {
+      message.error('添加评论失败')
+    }
+  }
+
+  const handleAddReply = async (
+    parentId: number,
+    content: string,
+    replyToUserId: number,
+    replyToUserName: string,
+    mentionUserIds: string
+  ) => {
+    try {
+      await createReply(parentId, {
+        content,
+        replyToUserId,
+        replyToUserName,
+        mentionUserIds
+      })
+      message.success('回复已添加')
+    } catch {
+      message.error('添加回复失败')
+    }
+  }
+
+  const handleDeleteComment = async (commentId: number) => {
+    try {
+      await removeComment(commentId)
+      message.success('评论已删除')
+    } catch {
+      message.error('删除评论失败')
+    }
+  }
+
+  const handleToggleLike = async (commentId: number) => {
+    try {
+      await toggleCommentLike(commentId)
+    } catch {
+      message.error('操作失败')
+    }
+  }
+
   useEffect(() => {
     toggleMobile(isMobileDevice())
   }, [toggleMobile])
@@ -244,6 +325,11 @@ const PreviewPage: React.FC = () => {
           loadSnapshotConfig(),
           loadSnapshotList()
         ])
+
+        loadComments(reportId)
+        loadCommentCount(reportId)
+        loadCellRefs(reportId)
+        loadChartIds(reportId)
       } catch (err: any) {
         console.error('加载报表失败:', err)
         setError(err.message || '加载报表失败')
@@ -257,6 +343,7 @@ const PreviewPage: React.FC = () => {
     return () => {
       reset()
       resetWriteback()
+      resetComment()
     }
   }, [id, setReportId, setReportName, loadParams, executeReport, reset, loadWritebackConfigs, resetWriteback, loadSnapshotConfig, loadSnapshotList])
 
@@ -428,6 +515,15 @@ const PreviewPage: React.FC = () => {
                   影响分析
                 </Button>
               </Tooltip>
+              <Badge count={commentTotalCount} size="small" offset={[-4, 4]}>
+                <Button
+                  icon={<CommentOutlined />}
+                  type={commentVisible ? 'primary' : 'default'}
+                  onClick={() => setCommentVisible(!commentVisible)}
+                >
+                  评论
+                </Button>
+              </Badge>
               <Button
                 icon={<SyncOutlined spin={shouldRefresh} />}
                 onClick={handleManualRefresh}
@@ -554,6 +650,31 @@ const PreviewPage: React.FC = () => {
                 reportId={Number(id)}
                 reportName={reportName || reportInfo?.name || ''}
                 onFieldClick={(fieldName) => handleFieldLineageTrace(fieldName)}
+              />
+            </Sider>
+          )}
+
+          {commentVisible && !isMobile && (
+            <Sider
+              width={380}
+              style={{
+                background: '#fff',
+                borderRadius: 8,
+                height: 'calc(100vh - 200px)',
+                position: 'sticky',
+                top: 16,
+                overflow: 'hidden',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+              }}
+            >
+              <CommentPanel
+                comments={comments}
+                loading={commentLoading}
+                title={`评论 (${commentTotalCount})`}
+                onAddComment={handleAddComment}
+                onAddReply={handleAddReply}
+                onLike={handleToggleLike}
+                onDelete={handleDeleteComment}
               />
             </Sider>
           )}

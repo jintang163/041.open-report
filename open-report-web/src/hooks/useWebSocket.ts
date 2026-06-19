@@ -62,7 +62,7 @@ export function useReportWebSocket(
   const [refreshKey, setRefreshKey] = useState(0)
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null)
 
-  const topics = templateId ? [`REPORT:${templateId}`, 'REPORT:LIST'] : ['REPORT:LIST']
+  const topics = templateId ? [`REPORT:${templateId}`, 'REPORT:LIST', `COMMENT:${templateId}`] : ['REPORT:LIST']
 
   const { isConnected } = useWebSocket(topics, (message) => {
     setLastMessage(message)
@@ -70,7 +70,9 @@ export function useReportWebSocket(
       message.type === 'REPORT_TEMPLATE_CHANGED' ||
       message.type === 'REPORT_DATA_CHANGED' ||
       message.type === 'REPORT_VERSION_CHANGED' ||
-      message.type === 'REPORT_APPROVAL_CHANGED'
+      message.type === 'REPORT_APPROVAL_CHANGED' ||
+      message.type === 'REPORT_COMMENT_CHANGED' ||
+      message.type === 'REPORT_COMMENT_MENTION'
     ) {
       setShouldRefresh(true)
       setRefreshKey((k) => k + 1)

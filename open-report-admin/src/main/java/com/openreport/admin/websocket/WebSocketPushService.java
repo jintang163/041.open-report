@@ -171,4 +171,47 @@ public class WebSocketPushService {
     public int getOnlineCount() {
         return webSocketHandler.getOnlineCount();
     }
+
+    public void pushCommentChange(Long templateId, String action, java.util.Map<String, Object> payload) {
+        if (templateId == null) {
+            return;
+        }
+        try {
+            WebSocketMessage msg = WebSocketMessage.of(
+                    WebSocketMessageType.REPORT_COMMENT_CHANGED,
+                    WebSocketTopic.comment(templateId),
+                    payload
+            );
+            webSocketHandler.broadcastToTopic(WebSocketTopic.comment(templateId), msg);
+
+            log.info("推送评论变更: templateId={}, action={}", templateId, action);
+        } catch (Exception e) {
+            log.error("推送评论变更失败: templateId={}", templateId, e);
+        }
+    }
+
+    public void pushCommentMention(Long templateId, Long commentId, String fromUserName, Long mentionUserId, String content) {
+        try {
+            java.util.Map<String, Object> payload = new java.util.HashMap<>();
+            payload.put("templateId", templateId);
+            payload.put("commentId", commentId);
+            payload.put("fromUserName", fromUserName);
+            payload.put("content", content);
+
+            WebSocketMessage msg = WebSocketMessage.of(
+                    WebSocketMessageType.REPORT_COMMENT_MENTION,
+                    WebSocketTopic.user(mentionUserId),
+                    payload
+            );
+            webSocketHandler.broadcastToTopic(WebSocketTopic.user(mentionUserId), msg);
+
+            log.info("推送评论@提及: templateId={}, mentionUserId={}", templateId, mentionUserId);
+        } catch (Exception e) {
+            log.error("推送评论@提及失败: mentionUserId={}", mentionUserId, e);
+        }
+    }
+
+    public void sendEmailNotification(String toEmail, String subject, String content) {
+        log.info("发送邮件通知: to={}, subject={}", toEmail, subject);
+    }
 }

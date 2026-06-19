@@ -17,4 +17,12 @@ public interface WebSocketTopic {
     static String approval(Long templateId) {
         return "APPROVAL:" + templateId;
     }
+
+    static String comment(Long templateId) {
+        return "COMMENT:" + templateId;
+    }
+
+    static String user(Long userId) {
+        return "USER:" + userId;
+    }
 }

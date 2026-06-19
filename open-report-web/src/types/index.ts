@@ -908,3 +908,36 @@ export interface FunctionDoc {
   example?: string
   status: number
 }
+
+export interface ReportComment {
+  id?: number
+  templateId?: number
+  templateName?: string
+  snapshotVersion?: number
+  cellRef?: string
+  chartId?: string
+  content: string
+  parentId?: number
+  replyToUserId?: number
+  replyToUserName?: string
+  mentionUserIds?: string
+  likeCount?: number
+  replyCount?: number
+  createBy?: number
+  createByName?: string
+  createByAvatar?: string
+  createTime?: string
+  updateTime?: string
+  liked?: boolean
+  replies?: ReportComment[]
+}
+
+export interface CommentCellRef {
+  cellRef: string
+  commentCount: number
+}
+
+export interface CommentChartRef {
+  chartId: string
+  commentCount: number
+}
