@@ -23,6 +23,9 @@ CREATE TABLE `report_snapshot_config` (
   `last_snapshot_id` BIGINT DEFAULT NULL COMMENT '最近一次快照ID',
   `snapshot_count` INT DEFAULT 0 COMMENT '已生成快照数量',
   `max_snapshots` INT DEFAULT 100 COMMENT '最大快照数量，超过删除最旧的',
+  `shard_enabled` TINYINT DEFAULT 1 COMMENT '是否启用分片存储: 1-启用 0-停用',
+  `shard_threshold_rows` INT DEFAULT 50000 COMMENT '分片阈值（行数），超过自动分片',
+  `shard_page_size` INT DEFAULT 1000 COMMENT '分片每页行数',
   `status` TINYINT DEFAULT 1 COMMENT '状态: 1-正常 0-停用',
   `create_by` BIGINT DEFAULT NULL COMMENT '创建人ID',
   `create_by_name` VARCHAR(100) DEFAULT NULL COMMENT '创建人姓名',
@@ -71,6 +74,40 @@ CREATE TABLE `report_data_snapshot` (
   KEY `idx_status` (`status`),
   KEY `idx_report_create` (`report_id`, `create_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='报表数据快照表';
+
+-- ============================================
+-- 2.1 快照分片表（大报表分片存储）
+-- ============================================
+DROP TABLE IF EXISTS `report_snapshot_shard`;
+CREATE TABLE `report_snapshot_shard` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `snapshot_id` BIGINT NOT NULL COMMENT '快照ID',
+  `report_id` BIGINT NOT NULL COMMENT '报表ID',
+  `config_id` BIGINT DEFAULT NULL COMMENT '配置ID',
+  `bind_name` VARCHAR(100) DEFAULT 'default' COMMENT '数据集绑定名称',
+  `dataset_id` BIGINT DEFAULT NULL COMMENT '数据集ID',
+  `shard_index` INT DEFAULT 0 COMMENT '分片序号（从0开始）',
+  `shard_type` VARCHAR(20) DEFAULT 'PAGE' COMMENT '分片类型: PAGE-分页 ROW-行号',
+  `page_num` INT DEFAULT 1 COMMENT '页码（分片类型为PAGE时）',
+  `page_size` INT DEFAULT 1000 COMMENT '每页行数',
+  `start_index` BIGINT DEFAULT 0 COMMENT '起始行号（包含）',
+  `end_index` BIGINT DEFAULT 0 COMMENT '结束行号（包含）',
+  `row_count` INT DEFAULT 0 COMMENT '当前分片行数',
+  `columns_json` TEXT COMMENT '列定义JSON',
+  `data_json` MEDIUMTEXT COMMENT '分片数据JSON',
+  `data_size` BIGINT DEFAULT 0 COMMENT '数据大小（字节）',
+  `storage_engine` VARCHAR(20) DEFAULT 'MYSQL' COMMENT '存储引擎: MYSQL/CLICKHOUSE',
+  `clickhouse_table` VARCHAR(100) DEFAULT NULL COMMENT 'ClickHouse表名',
+  `status` TINYINT DEFAULT 1 COMMENT '状态: 1-正常 0-无效',
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` TINYINT DEFAULT 0 COMMENT '逻辑删除: 1-删除 0-未删除',
+  PRIMARY KEY (`id`),
+  KEY `idx_snapshot_id` (`snapshot_id`),
+  KEY `idx_snapshot_bindname` (`snapshot_id`, `bind_name`),
+  KEY `idx_snapshot_shardindex` (`snapshot_id`, `shard_index`),
+  KEY `idx_report_id` (`report_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='快照分片数据表';
 
 -- ============================================
 -- 3. ClickHouse 可选存储表（如使用 ClickHouse）

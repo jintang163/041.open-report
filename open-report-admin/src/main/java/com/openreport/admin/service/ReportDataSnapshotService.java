@@ -26,4 +26,10 @@ public interface ReportDataSnapshotService extends IService<ReportDataSnapshot> 
     Map<String, Object> compareSnapshots(Long baseSnapshotId, Long targetSnapshotId);
 
     Map<String, Object> compareSnapshotWithRealtime(Long snapshotId, Map<String, Object> params);
+
+    Map<String, Object> getSnapshotDataPage(Long snapshotId, String bindName, Integer pageNum, Integer pageSize);
+
+    Map<String, Object> getSnapshotStorageInfo(Long snapshotId);
+
+    List<String> getSnapshotBindNames(Long snapshotId);
 }

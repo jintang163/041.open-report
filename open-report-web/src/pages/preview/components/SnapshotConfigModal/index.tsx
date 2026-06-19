@@ -69,6 +69,9 @@ const SnapshotConfigModal: React.FC<SnapshotConfigModalProps> = ({
           retentionDays: existingConfig.retentionDays || 30,
           maxSnapshots: existingConfig.maxSnapshots || 100,
           snapshotType: existingConfig.snapshotType || 'FULL',
+          shardEnabled: existingConfig.shardEnabled === 1,
+          shardThresholdRows: existingConfig.shardThresholdRows || 50000,
+          shardPageSize: existingConfig.shardPageSize || 1000,
           description: existingConfig.description || ''
         })
         setCustomCron(!CRON_PRESETS.find(p => p.value === existingConfig.cronExpression))
@@ -79,7 +82,10 @@ const SnapshotConfigModal: React.FC<SnapshotConfigModalProps> = ({
           cronPreset: '0 0 2 * * ?',
           retentionDays: 30,
           maxSnapshots: 100,
-          snapshotType: 'FULL'
+          snapshotType: 'FULL',
+          shardEnabled: true,
+          shardThresholdRows: 50000,
+          shardPageSize: 1000
         })
         setCustomCron(false)
       }
@@ -101,6 +107,9 @@ const SnapshotConfigModal: React.FC<SnapshotConfigModalProps> = ({
         retentionDays: values.retentionDays,
         maxSnapshots: values.maxSnapshots,
         snapshotType: values.snapshotType,
+        shardEnabled: values.shardEnabled ? 1 : 0,
+        shardThresholdRows: values.shardThresholdRows,
+        shardPageSize: values.shardPageSize,
         description: values.description
       }
 
@@ -304,6 +313,46 @@ const SnapshotConfigModal: React.FC<SnapshotConfigModalProps> = ({
                   { label: '增量快照', value: 'INCREMENTAL' }
                 ]}
               />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item name="shardEnabled" label="启用分片存储" valuePropName="checked">
+              <Switch checkedChildren="启用" unCheckedChildren="停用" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item
+              name="shardThresholdRows"
+              label={
+                <Space>
+                  分片阈值（行）
+                  <Tooltip title="数据行数超过此阈值时自动启用分片存储">
+                    <QuestionCircleOutlined />
+                  </Tooltip>
+                </Space>
+              }
+              rules={[{ required: true, message: '请输入分片阈值' }]}
+            >
+              <InputNumber min={1000} max={1000000} style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item
+              name="shardPageSize"
+              label={
+                <Space>
+                  分片每页行数
+                  <Tooltip title="每个分片存储的行数">
+                    <QuestionCircleOutlined />
+                  </Tooltip>
+                </Space>
+              }
+              rules={[{ required: true, message: '请输入每页行数' }]}
+            >
+              <InputNumber min={100} max={50000} style={{ width: '100%' }} />
             </Form.Item>
           </Col>
         </Row>

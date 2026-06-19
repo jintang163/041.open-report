@@ -58,6 +58,15 @@ public class ReportSnapshotConfig implements Serializable {
     @TableField("max_snapshots")
     private Integer maxSnapshots;
 
+    @TableField("shard_enabled")
+    private Integer shardEnabled;
+
+    @TableField("shard_threshold_rows")
+    private Long shardThresholdRows;
+
+    @TableField("shard_page_size")
+    private Integer shardPageSize;
+
     @TableField("status")
     private Integer status;
 

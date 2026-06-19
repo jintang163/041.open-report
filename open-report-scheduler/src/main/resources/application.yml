@@ -100,3 +100,13 @@ report:
       timeout: 10000
     wecom:
       timeout: 10000
+  admin:
+    base-url: http://localhost:8080/api
+    service-key: openreport-scheduler
+    service-secret: openreport-scheduler-secret-2024
+    service-user-id: 1
+    service-username: scheduler_service
+
+jwt:
+  secret: openreport-secret-key-1234567890
+  expiration: 86400

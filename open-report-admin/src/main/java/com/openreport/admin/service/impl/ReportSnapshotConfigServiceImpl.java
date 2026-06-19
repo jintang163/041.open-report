@@ -12,6 +12,8 @@ import com.openreport.admin.service.DataSetService;
 import com.openreport.admin.service.ReportDataSnapshotService;
 import com.openreport.admin.service.ReportSnapshotConfigService;
 import com.openreport.admin.service.ReportTemplateService;
+import com.openreport.admin.service.snapshot.SnapshotStorageService;
+import com.openreport.admin.service.snapshot.SnapshotStorageStrategy;
 import com.openreport.common.config.SecurityContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +47,12 @@ public class ReportSnapshotConfigServiceImpl extends ServiceImpl<ReportSnapshotC
     @Autowired
     private DataSetService dataSetService;
 
+    @Autowired
+    private SnapshotStorageService snapshotStorageService;
+
+    private static final long DEFAULT_SHARD_THRESHOLD_ROWS = 50000L;
+    private static final int DEFAULT_SHARD_PAGE_SIZE = 5000;
+
     @Override
     public List<ReportSnapshotConfig> listEnabledConfigs() {
         return configMapper.selectEnabledConfigs();
@@ -68,6 +76,9 @@ public class ReportSnapshotConfigServiceImpl extends ServiceImpl<ReportSnapshotC
         config.setStorageType(config.getStorageType() != null ? config.getStorageType() : "MYSQL");
         config.setSnapshotCount(0);
         config.setMaxSnapshots(config.getMaxSnapshots() != null ? config.getMaxSnapshots() : 100);
+        config.setShardEnabled(config.getShardEnabled() != null ? config.getShardEnabled() : 1);
+        config.setShardThresholdRows(config.getShardThresholdRows() != null ? config.getShardThresholdRows() : DEFAULT_SHARD_THRESHOLD_ROWS);
+        config.setShardPageSize(config.getShardPageSize() != null ? config.getShardPageSize() : DEFAULT_SHARD_PAGE_SIZE);
         config.setStatus(1);
         config.setCreateTime(LocalDateTime.now());
         config.setUpdateTime(LocalDateTime.now());
@@ -195,8 +206,12 @@ public class ReportSnapshotConfigServiceImpl extends ServiceImpl<ReportSnapshotC
 
             long rowCount = 0;
             int tableCount = 0;
+            boolean useShardStorage = false;
+            int totalShards = 0;
+
+            List<Map<String, Object>> tables = null;
             if (executeResult.get("tables") != null) {
-                List<Map<String, Object>> tables = (List<Map<String, Object>>) executeResult.get("tables");
+                tables = (List<Map<String, Object>>) executeResult.get("tables");
                 tableCount = tables.size();
                 for (Map<String, Object> table : tables) {
                     if (table.get("total") != null) {
@@ -206,6 +221,18 @@ public class ReportSnapshotConfigServiceImpl extends ServiceImpl<ReportSnapshotC
                         rowCount += rows.size();
                     }
                 }
+            }
+
+            Integer shardEnabled = config.getShardEnabled();
+            Long shardThreshold = config.getShardThresholdRows();
+            Integer shardPageSize = config.getShardPageSize();
+            if (shardEnabled == null) shardEnabled = 1;
+            if (shardThreshold == null) shardThreshold = DEFAULT_SHARD_THRESHOLD_ROWS;
+            if (shardPageSize == null) shardPageSize = DEFAULT_SHARD_PAGE_SIZE;
+
+            if (shardEnabled == 1 && rowCount >= shardThreshold && tables != null && !tables.isEmpty()) {
+                useShardStorage = true;
+                snapshot.setStorageType("MYSQL_SHARD");
             }
 
             LocalDateTime expireTime = LocalDateTime.now().plusDays(
@@ -220,6 +247,10 @@ public class ReportSnapshotConfigServiceImpl extends ServiceImpl<ReportSnapshotC
             snapshot.setExpireTime(expireTime);
             snapshot.setStatus(1);
             snapshotMapper.insert(snapshot);
+
+            if (useShardStorage) {
+                totalShards = buildShardStorage(snapshot.getId(), reportId, configId, tables, shardPageSize);
+            }
 
             config.setLastSnapshotId(snapshot.getId());
             config.setLastSnapshotTime(LocalDateTime.now());
@@ -237,7 +268,11 @@ public class ReportSnapshotConfigServiceImpl extends ServiceImpl<ReportSnapshotC
             result.put("dataSize", dataSize);
             result.put("executeTime", executeTime);
             result.put("expireTime", expireTime);
-            logger.info("创建快照成功, snapshotId: {}, reportId: {}, rowCount: {}", snapshot.getId(), reportId, rowCount);
+            result.put("shardStorage", useShardStorage);
+            result.put("shardCount", totalShards);
+            result.put("storageType", snapshot.getStorageType());
+            logger.info("创建快照成功, snapshotId: {}, reportId: {}, rowCount: {}, shardStorage: {}, shardCount: {}",
+                    snapshot.getId(), reportId, rowCount, useShardStorage, totalShards);
 
         } catch (Exception e) {
             logger.error("创建快照失败, configId: {}", configId, e);
@@ -348,6 +383,47 @@ public class ReportSnapshotConfigServiceImpl extends ServiceImpl<ReportSnapshotC
             logger.error("清理过期快照失败", e);
             return false;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private int buildShardStorage(Long snapshotId, Long reportId, Long configId,
+                                  List<Map<String, Object>> tables, int pageSize) {
+        int totalShards = 0;
+        SnapshotStorageStrategy storage = snapshotStorageService.getStrategy("MYSQL_SHARD");
+
+        for (Map<String, Object> table : tables) {
+            String bindName = table.get("bindName") != null ? table.get("bindName").toString() : "default";
+            Long datasetId = table.get("dataSetId") != null
+                    ? Long.valueOf(table.get("dataSetId").toString())
+                    : null;
+
+            List<Map<String, Object>> columns = (List<Map<String, Object>>) table.get("columns");
+            if (columns == null) columns = new ArrayList<>();
+
+            List<Map<String, Object>> rows = (List<Map<String, Object>>) table.get("rows");
+            if (rows == null) rows = new ArrayList<>();
+
+            int totalRows = rows.size();
+            int shardCount = (int) Math.ceil((double) totalRows / pageSize);
+
+            for (int i = 0; i < shardCount; i++) {
+                int fromIdx = i * pageSize;
+                int toIdx = Math.min(fromIdx + pageSize, totalRows);
+                List<Map<String, Object>> shardRows = rows.subList(fromIdx, toIdx);
+
+                storage.storeShard(
+                        snapshotId, reportId, configId,
+                        bindName, datasetId,
+                        i, i + 1, pageSize,
+                        fromIdx, toIdx - 1,
+                        shardRows, columns
+                );
+                totalShards++;
+            }
+        }
+
+        logger.info("快照分片存储完成: snapshotId={}, totalShards={}", snapshotId, totalShards);
+        return totalShards;
     }
 
     private String calculateHash(String data) {

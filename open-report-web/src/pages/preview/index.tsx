@@ -43,7 +43,7 @@ import { usePreviewStore, SnapshotMode } from './store/preview'
 import { useWritebackStore } from './store/writeback'
 import { getReportById, compareSnapshotWithRealtime } from '@/api/report'
 import { ReportTemplate, SnapshotComparisonResult } from '@/types'
-import { isMobileDevice } from './utils/report'
+import { isMobileDevice, formatParamValue } from './utils/report'
 import { useReportWebSocket } from '@/hooks/useWebSocket'
 import dayjs from 'dayjs'
 
@@ -69,6 +69,8 @@ const PreviewPage: React.FC = () => {
 
   const setReportId = usePreviewStore((state) => state.setReportId)
   const setReportName = usePreviewStore((state) => state.setReportName)
+  const params = usePreviewStore((state) => state.params)
+  const paramValues = usePreviewStore((state) => state.paramValues)
   const loadParams = usePreviewStore((state) => state.loadParams)
   const executeReport = usePreviewStore((state) => state.executeReport)
   const executeReportWithSnapshotMode = usePreviewStore((state) => state.executeReportWithSnapshotMode)
@@ -167,7 +169,8 @@ const PreviewPage: React.FC = () => {
     setCompareLoading(true)
     setCompareResult(null)
     try {
-      const result = await compareSnapshotWithRealtime(snapshotId)
+      const formattedParams = formatParamValue(params, paramValues)
+      const result = await compareSnapshotWithRealtime(snapshotId, formattedParams)
       setCompareResult(result)
     } catch (err: any) {
       setCompareResult({ success: false, message: err?.message || '对比失败' })

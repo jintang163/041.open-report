@@ -65,7 +65,22 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
         Long userId;
         String username;
 
-        if ("embed".equals(tokenType)) {
+        if ("service".equals(tokenType)) {
+            Object serviceKey = claims.get("serviceKey");
+            Object serviceSecret = claims.get("serviceSecret");
+            String expectedServiceKey = "openreport-scheduler";
+            String expectedServiceSecret = "openreport-scheduler-secret-2024";
+            if (serviceKey == null || serviceSecret == null ||
+                    !expectedServiceKey.equals(serviceKey.toString()) ||
+                    !expectedServiceSecret.equals(serviceSecret.toString())) {
+                writeErrorResponse(response, ResultCode.UNAUTHORIZED);
+                return false;
+            }
+            Object id = claims.get("userId");
+            Object uname = claims.get("username");
+            userId = id != null ? Long.valueOf(id.toString()) : null;
+            username = uname != null ? uname.toString() : "scheduler_service";
+        } else if ("embed".equals(tokenType)) {
             Object createBy = claims.get("createBy");
             Object createByUsername = claims.get("createByUsername");
             userId = createBy != null ? Long.valueOf(createBy.toString()) : null;

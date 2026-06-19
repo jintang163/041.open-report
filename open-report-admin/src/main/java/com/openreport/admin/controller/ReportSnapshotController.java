@@ -132,4 +132,27 @@ public class ReportSnapshotController {
     public Result<Boolean> cleanupExpired() {
         return Result.success(configService.cleanupExpiredSnapshots());
     }
+
+    @ApiOperation("快照数据分页查询")
+    @GetMapping("/data/page/{snapshotId}")
+    public Result<Map<String, Object>> getSnapshotDataPage(
+            @PathVariable Long snapshotId,
+            @RequestParam(required = false) String bindName,
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "200") Integer pageSize) {
+        return Result.success(dataSnapshotService.getSnapshotDataPage(
+                snapshotId, bindName, pageNum, pageSize));
+    }
+
+    @ApiOperation("获取快照存储信息")
+    @GetMapping("/data/storage-info/{snapshotId}")
+    public Result<Map<String, Object>> getSnapshotStorageInfo(@PathVariable Long snapshotId) {
+        return Result.success(dataSnapshotService.getSnapshotStorageInfo(snapshotId));
+    }
+
+    @ApiOperation("获取快照数据集列表")
+    @GetMapping("/data/bind-names/{snapshotId}")
+    public Result<List<String>> getSnapshotBindNames(@PathVariable Long snapshotId) {
+        return Result.success(dataSnapshotService.getSnapshotBindNames(snapshotId));
+    }
 }

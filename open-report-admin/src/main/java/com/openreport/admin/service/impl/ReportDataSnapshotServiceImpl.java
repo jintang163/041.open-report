@@ -8,6 +8,8 @@ import com.openreport.admin.mapper.ReportDataSnapshotMapper;
 import com.openreport.admin.service.DataSetService;
 import com.openreport.admin.service.ReportDataSnapshotService;
 import com.openreport.admin.service.ReportTemplateService;
+import com.openreport.admin.service.snapshot.SnapshotStorageService;
+import com.openreport.admin.service.snapshot.SnapshotStorageStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +32,9 @@ public class ReportDataSnapshotServiceImpl extends ServiceImpl<ReportDataSnapsho
 
     @Autowired
     private DataSetService dataSetService;
+
+    @Autowired
+    private SnapshotStorageService snapshotStorageService;
 
     @Override
     public List<ReportDataSnapshot> listByReportId(Long reportId, Integer limit) {
@@ -123,6 +128,7 @@ public class ReportDataSnapshotServiceImpl extends ServiceImpl<ReportDataSnapsho
             Map<String, Object> targetData = JSON.parseObject(targetSnapshot.getDataJson(), Map.class);
 
             result.put("success", true);
+            result.put("compareMode", "snapshot-snapshot");
             result.put("baseSnapshot", buildSnapshotInfo(baseSnapshot));
             result.put("targetSnapshot", buildSnapshotInfo(targetSnapshot));
 
@@ -130,6 +136,7 @@ public class ReportDataSnapshotServiceImpl extends ServiceImpl<ReportDataSnapsho
             result.put("tablesComparison", tablesComparison);
 
             Map<String, Object> summary = buildComparisonSummary(baseSnapshot, targetSnapshot, tablesComparison);
+            summary.put("compareMode", "snapshot-snapshot");
             result.put("summary", summary);
 
             logger.info("快照对比完成, baseId: {}, targetId: {}", baseSnapshotId, targetSnapshotId);
@@ -164,19 +171,14 @@ public class ReportDataSnapshotServiceImpl extends ServiceImpl<ReportDataSnapsho
 
             Map<String, Object> realtimeData = executeRealtimeReport(template, params != null ? params : new HashMap<>());
 
-            result.put("success", true);
-            result.put("snapshotInfo", buildSnapshotInfo(snapshot));
-            result.put("realtimeInfo", Map.of(
-                    "name", "实时数据",
-                    "time", LocalDateTime.now().toString()
-            ));
-
-            List<Map<String, Object>> tablesComparison = compareTables(snapshotData, realtimeData);
-            result.put("tablesComparison", tablesComparison);
+            Map<String, Object> snapshotInfo = buildSnapshotInfo(snapshot);
 
             long realtimeRowCount = 0;
+            long realtimeDataSize = 0;
+            int realtimeTableCount = 0;
             if (realtimeData.get("tables") != null) {
                 List<Map<String, Object>> tables = (List<Map<String, Object>>) realtimeData.get("tables");
+                realtimeTableCount = tables.size();
                 for (Map<String, Object> table : tables) {
                     if (table.get("total") != null) {
                         realtimeRowCount += Long.parseLong(table.get("total").toString());
@@ -186,16 +188,55 @@ public class ReportDataSnapshotServiceImpl extends ServiceImpl<ReportDataSnapsho
                     }
                 }
             }
+            String realtimeDataJson = JSON.toJSONString(realtimeData);
+            realtimeDataSize = realtimeDataJson.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            String realtimeDataHash = calculateHash(realtimeDataJson);
+
+            Map<String, Object> realtimeInfo = new LinkedHashMap<>();
+            realtimeInfo.put("id", 0);
+            realtimeInfo.put("name", "实时数据");
+            realtimeInfo.put("dataVersion", "realtime");
+            realtimeInfo.put("createTime", LocalDateTime.now().toString());
+            realtimeInfo.put("rowCount", realtimeRowCount);
+            realtimeInfo.put("dataSize", realtimeDataSize);
+            realtimeInfo.put("tableCount", realtimeTableCount);
+            realtimeInfo.put("dataHash", realtimeDataHash);
+
+            List<Map<String, Object>> tablesComparison = compareTables(snapshotData, realtimeData);
 
             Map<String, Object> summary = new LinkedHashMap<>();
+            summary.put("compareMode", "snapshot-realtime");
+            summary.put("baseRowCount", snapshot.getRowCount());
+            summary.put("targetRowCount", realtimeRowCount);
             summary.put("snapshotRowCount", snapshot.getRowCount());
             summary.put("realtimeRowCount", realtimeRowCount);
+            summary.put("totalRowDiff", realtimeRowCount - (snapshot.getRowCount() != null ? snapshot.getRowCount() : 0));
             summary.put("rowDiff", realtimeRowCount - (snapshot.getRowCount() != null ? snapshot.getRowCount() : 0));
-            summary.put("dataHashChanged", !Objects.equals(snapshot.getDataHash(), calculateHash(JSON.toJSONString(realtimeData))));
+            long baseRows = snapshot.getRowCount() != null ? snapshot.getRowCount() : 0;
+            summary.put("rowDiffPercent", baseRows > 0 ? String.format("%.2f%%", (realtimeRowCount - baseRows) * 100.0 / baseRows) : "N/A");
+            summary.put("dataHashChanged", !Objects.equals(snapshot.getDataHash(), realtimeDataHash));
+            summary.put("baseDataSize", snapshot.getDataSize());
+            summary.put("targetDataSize", realtimeDataSize);
+            summary.put("snapshotDataSize", snapshot.getDataSize());
+            summary.put("realtimeDataSize", realtimeDataSize);
+            summary.put("sizeDiff", realtimeDataSize - (snapshot.getDataSize() != null ? snapshot.getDataSize() : 0));
+            summary.put("hoursDiff", 0);
+
+            result.put("success", true);
+            result.put("compareMode", "snapshot-realtime");
+            result.put("baseSnapshot", snapshotInfo);
+            result.put("targetSnapshot", realtimeInfo);
+            result.put("snapshotInfo", snapshotInfo);
+            result.put("realtimeInfo", Map.of(
+                    "name", "实时数据",
+                    "time", LocalDateTime.now().toString()
+            ));
+            result.put("tablesComparison", tablesComparison);
             result.put("summary", summary);
             result.put("realtimeData", realtimeData);
+            result.put("queryParams", params != null ? params : new HashMap<>());
 
-            logger.info("快照与实时数据对比完成, snapshotId: {}", snapshotId);
+            logger.info("快照与实时数据对比完成, snapshotId: {}, params: {}", snapshotId, params);
         } catch (Exception e) {
             logger.error("快照与实时数据对比失败, snapshotId: {}", snapshotId, e);
             result.put("success", false);
@@ -453,6 +494,100 @@ public class ReportDataSnapshotServiceImpl extends ServiceImpl<ReportDataSnapsho
             result.put("table", tableData);
         }
         return result;
+    }
+
+    @Override
+    public Map<String, Object> getSnapshotDataPage(Long snapshotId, String bindName, Integer pageNum, Integer pageSize) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("success", false);
+
+        ReportDataSnapshot snapshot = getById(snapshotId);
+        if (snapshot == null) {
+            result.put("message", "快照不存在");
+            return result;
+        }
+
+        String storageType = snapshot.getStorageType();
+        boolean isSharded = "MYSQL_SHARD".equals(storageType) || "CLICKHOUSE".equals(storageType);
+
+        try {
+            SnapshotStorageStrategy storage = snapshotStorageService.getStrategy(storageType);
+            String actualBindName = bindName;
+            if (actualBindName == null || actualBindName.isEmpty()) {
+                List<String> bindNames = storage.listBindNames(snapshotId);
+                actualBindName = bindNames != null && !bindNames.isEmpty() ? bindNames.get(0) : "default";
+            }
+
+            int page = pageNum != null && pageNum > 0 ? pageNum : 1;
+            int size = pageSize != null && pageSize > 0 ? pageSize : 200;
+
+            List<Map<String, Object>> columns = storage.getColumns(snapshotId, actualBindName);
+            List<Map<String, Object>> rows = storage.loadPage(snapshotId, actualBindName, page, size);
+            long total = storage.getTotalRows(snapshotId, actualBindName);
+            int totalPages = (int) Math.ceil((double) total / size);
+            boolean hasMore = page < totalPages;
+
+            result.put("success", true);
+            result.put("snapshotId", snapshotId);
+            result.put("bindName", actualBindName);
+            result.put("pageNum", page);
+            result.put("pageSize", size);
+            result.put("total", total);
+            result.put("totalPages", totalPages);
+            result.put("hasMore", hasMore);
+            result.put("columns", columns);
+            result.put("rows", rows);
+            result.put("storageType", storageType);
+            result.put("isSharded", isSharded);
+
+            logger.info("快照分页查询成功: snapshotId={}, bindName={}, page={}, size={}, total={}",
+                    snapshotId, actualBindName, page, size, total);
+        } catch (Exception e) {
+            logger.error("快照分页查询失败: snapshotId={}", snapshotId, e);
+            result.put("message", "分页查询失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> getSnapshotStorageInfo(Long snapshotId) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        ReportDataSnapshot snapshot = getById(snapshotId);
+        if (snapshot == null) {
+            result.put("success", false);
+            result.put("message", "快照不存在");
+            return result;
+        }
+        try {
+            SnapshotStorageStrategy storage = snapshotStorageService.getStrategy(snapshot.getStorageType());
+            Map<String, Object> storageInfo = storage.getStorageInfo(snapshotId);
+            result.put("success", true);
+            result.put("snapshotId", snapshotId);
+            result.put("storageType", snapshot.getStorageType());
+            result.put("storageInfo", storageInfo);
+            result.put("rowCount", snapshot.getRowCount());
+            result.put("dataSize", snapshot.getDataSize());
+        } catch (Exception e) {
+            logger.error("获取快照存储信息失败: snapshotId={}", snapshotId, e);
+            result.put("success", false);
+            result.put("message", e.getMessage());
+        }
+        return result;
+    }
+
+    @Override
+    public List<String> getSnapshotBindNames(Long snapshotId) {
+        ReportDataSnapshot snapshot = getById(snapshotId);
+        if (snapshot == null) {
+            return Collections.emptyList();
+        }
+        try {
+            SnapshotStorageStrategy storage = snapshotStorageService.getStrategy(snapshot.getStorageType());
+            return storage.listBindNames(snapshotId);
+        } catch (Exception e) {
+            logger.error("获取快照数据集列表失败: snapshotId={}", snapshotId, e);
+            return Collections.emptyList();
+        }
     }
 
     private String calculateHash(String data) {

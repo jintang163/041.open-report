@@ -610,6 +610,9 @@ export interface ReportSnapshotConfig {
   lastSnapshotId?: number
   snapshotCount?: number
   maxSnapshots?: number
+  shardEnabled?: number
+  shardThresholdRows?: number
+  shardPageSize?: number
   status?: number
   createBy?: number
   createByName?: string
@@ -700,6 +703,57 @@ export interface SnapshotComparisonResult {
     hoursDiff?: number
   }
   realtimeData?: any
+}
+
+export interface SnapshotPageData {
+  success: boolean
+  message?: string
+  snapshotId?: number
+  bindName?: string
+  pageNum?: number
+  pageSize?: number
+  total?: number
+  totalPages?: number
+  hasMore?: boolean
+  columns?: Array<Record<string, any>>
+  rows?: Array<Record<string, any>>
+  storageType?: string
+  isSharded?: boolean
+}
+
+export interface SnapshotStorageInfo {
+  success: boolean
+  message?: string
+  snapshotId?: number
+  storageType?: string
+  rowCount?: number
+  dataSize?: number
+  storageInfo?: {
+    totalShards?: number
+    bindNames?: string[]
+    shardSize?: number
+    engine?: string
+  }
+}
+
+export interface ReportSnapshotShard {
+  id?: number
+  snapshotId?: number
+  reportId?: number
+  configId?: number
+  bindName?: string
+  datasetId?: number
+  shardIndex?: number
+  shardType?: string
+  pageNum?: number
+  pageSize?: number
+  startIndex?: number
+  endIndex?: number
+  rowCount?: number
+  dataJson?: string
+  dataSize?: number
+  storageEngine?: string
+  createTime?: string
 }
 
 export interface FunctionDoc {

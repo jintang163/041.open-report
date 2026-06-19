@@ -1,5 +1,5 @@
 import { get, post, put, del } from '@/utils/request'
-import { ReportTemplate, PageParams, PageResult, ReportTemplateSnapshot, ReportApproval, TemplateVersionDiffDTO, ReportSnapshotConfig, ReportDataSnapshot, SnapshotComparisonResult } from '@/types'
+import { ReportTemplate, PageParams, PageResult, ReportTemplateSnapshot, ReportApproval, TemplateVersionDiffDTO, ReportSnapshotConfig, ReportDataSnapshot, SnapshotComparisonResult, SnapshotPageData, SnapshotStorageInfo, ReportSnapshotShard } from '@/types'
 
 export const executeReportWithSnapshot = (
   id: number,
@@ -80,6 +80,25 @@ export const compareSnapshotWithRealtime = (
   params?: Record<string, any>
 ): Promise<SnapshotComparisonResult> => {
   return post(`/report-snapshot/compare-realtime/${snapshotId}`, params)
+}
+
+export const getSnapshotDataPage = (
+  snapshotId: number,
+  params?: {
+    bindName?: string
+    pageNum?: number
+    pageSize?: number
+  }
+): Promise<SnapshotPageData> => {
+  return get(`/report-snapshot/data/page/${snapshotId}`, params)
+}
+
+export const getSnapshotStorageInfo = (snapshotId: number): Promise<SnapshotStorageInfo> => {
+  return get(`/report-snapshot/data/storage-info/${snapshotId}`)
+}
+
+export const getSnapshotBindNames = (snapshotId: number): Promise<string[]> => {
+  return get(`/report-snapshot/data/bind-names/${snapshotId}`)
 }
 
 export const getReportList = (params: PageParams): Promise<PageResult<ReportTemplate>> => {
