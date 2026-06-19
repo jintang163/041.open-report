@@ -15,6 +15,7 @@ import RowSecurityManagement from '@/pages/system/row-security'
 import FieldPermissionManagement from '@/pages/system/field-permission'
 import TenantManagement from '@/pages/system/tenant'
 import TenantDatasourceMappingPage from '@/pages/system/tenant-datasource'
+import ZeroCodeDashboardBuilder from '@/pages/zero-code-dashboard'
 import DatasourceManagement from '@/pages/datasource'
 import DatasetManagement from '@/pages/dataset'
 import ReportManagement from '@/pages/report'
@@ -192,6 +193,11 @@ const routes = [
             path: 'system/tenant-datasource',
             element: withLoading(TenantDatasourceMappingPage)(),
             meta: { title: '租户数据源映射', icon: 'SwapOutlined', parent: '系统管理' }
+          },
+          {
+            path: 'zero-code-dashboard',
+            element: withLoading(ZeroCodeDashboardBuilder)(),
+            meta: { title: '零代码仪表板', icon: 'MagicOutlined', parent: '可视化' }
           },
           {
             path: 'embed/demo',

@@ -980,3 +980,45 @@ export interface TenantDatasourceMappingVO {
   createTime?: string
   updateTime?: string
 }
+
+export type FieldCategory = 'DIMENSION' | 'MEASURE' | 'DATE' | 'GEO' | 'UNKNOWN'
+
+export interface FieldInfo {
+  name: string
+  type: string
+  category: FieldCategory
+  distinctCount: number
+  sampleValue: any
+}
+
+export interface ChartRecommendationResult {
+  recommendedType: string
+  reason: string
+  alternatives: string[]
+  xFieldCandidates: string[]
+  yFieldCandidates: string[]
+  suggestedCardWidth: number
+  suggestedCardHeight: number
+  fields: FieldInfo[]
+}
+
+export interface AutoDashboardCard {
+  id: string
+  datasetId: number
+  chartType: ChartType
+  title: string
+  xField: string
+  yFields: string[]
+  width: number
+  height: number
+  reason?: string
+  alternatives?: string[]
+}
+
+export interface AutoDashboardResult {
+  cards: AutoDashboardCard[]
+  datasetName: string
+  totalMeasures: number
+  totalDimensions: number
+  rows: Record<string, any>[]
+}
