@@ -276,4 +276,44 @@ CREATE TABLE `chart_dashboard_item` (
   KEY `idx_dashboard_id` (`dashboard_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='大屏图表组件表';
 
+-- ----------------------------
+-- 数据血缘关系表
+-- ----------------------------
+DROP TABLE IF EXISTS `data_lineage`;
+CREATE TABLE `data_lineage` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `report_id` bigint NOT NULL COMMENT '报表ID',
+  `report_name` varchar(255) DEFAULT NULL COMMENT '报表名称',
+  `report_field` varchar(100) NOT NULL COMMENT '报表字段名',
+  `report_field_title` varchar(255) DEFAULT NULL COMMENT '报表字段显示名',
+  `data_set_id` bigint NOT NULL COMMENT '数据集ID',
+  `data_set_name` varchar(255) DEFAULT NULL COMMENT '数据集名称',
+  `data_set_field` varchar(100) NOT NULL COMMENT '数据集字段名',
+  `bind_name` varchar(100) DEFAULT 'default' COMMENT '数据集绑定名称',
+  `expression` text COMMENT 'SQL表达式或字段映射关系',
+  `lineage_type` varchar(20) DEFAULT 'DIRECT' COMMENT '血缘类型: DIRECT-直接映射 EXPRESSION-表达式计算 AGGREGATION-聚合计算',
+  `datasource_id` bigint DEFAULT NULL COMMENT '数据源ID',
+  `datasource_name` varchar(255) DEFAULT NULL COMMENT '数据源名称',
+  `datasource_type` varchar(20) DEFAULT NULL COMMENT '数据源类型',
+  `database_name` varchar(100) DEFAULT NULL COMMENT '数据库名',
+  `schema_name` varchar(100) DEFAULT NULL COMMENT 'Schema名',
+  `table_name` varchar(100) DEFAULT NULL COMMENT '数据库表名',
+  `column_name` varchar(100) DEFAULT NULL COMMENT '数据库字段名',
+  `source_tables` text COMMENT '涉及的源表JSON数组',
+  `source_columns` text COMMENT '涉及的源字段JSON数组',
+  `sql_text` text COMMENT '原始SQL片段',
+  `lineage_hash` varchar(64) DEFAULT NULL COMMENT '血缘哈希，用于去重',
+  `status` tinyint DEFAULT 1 COMMENT '状态: 1-有效 0-无效',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint DEFAULT 0 COMMENT '逻辑删除: 1-删除 0-未删除',
+  PRIMARY KEY (`id`),
+  KEY `idx_report_id` (`report_id`),
+  KEY `idx_dataset_id` (`data_set_id`),
+  KEY `idx_datasource_id` (`datasource_id`),
+  KEY `idx_table_column` (`table_name`, `column_name`),
+  KEY `idx_lineage_hash` (`lineage_hash`),
+  KEY `idx_report_field` (`report_id`, `report_field`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='数据血缘关系表';
+
 SET FOREIGN_KEY_CHECKS = 1;

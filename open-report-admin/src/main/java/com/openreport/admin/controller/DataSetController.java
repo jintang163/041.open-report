@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.openreport.admin.config.RequirePerms;
 import com.openreport.admin.entity.DataSet;
 import com.openreport.admin.service.DataSetService;
+import com.openreport.admin.service.DataLineageService;
 import com.openreport.common.result.Result;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
@@ -24,6 +25,9 @@ public class DataSetController {
 
     @Autowired
     private com.openreport.admin.websocket.WebSocketPushService pushService;
+
+    @Autowired
+    private DataLineageService dataLineageService;
 
     @ApiOperation("分页查询数据集列表")
     @GetMapping("/page")
@@ -64,6 +68,14 @@ public class DataSetController {
         }
         dataSetService.save(dataSet);
         pushService.pushDataChangeToAll("DATASET_ADD");
+
+        try {
+            dataLineageService.refreshLineageForDataSet(dataSet.getId());
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(DataSetController.class)
+                    .warn("自动刷新血缘关系失败（不影响保存）: dataSetId={}", dataSet.getId(), e);
+        }
+
         return Result.success();
     }
 
@@ -75,6 +87,14 @@ public class DataSetController {
         dataSet.setUpdateTime(LocalDateTime.now());
         dataSetService.updateById(dataSet);
         pushService.pushDataChangeToAll("DATASET_UPDATE");
+
+        try {
+            dataLineageService.refreshLineageForDataSet(dataSet.getId());
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(DataSetController.class)
+                    .warn("自动刷新血缘关系失败（不影响更新）: dataSetId={}", dataSet.getId(), e);
+        }
+
         return Result.success();
     }
 

@@ -861,8 +861,20 @@ export interface LineageRefreshResult {
   reportId?: number
   reportName?: string
   dataSetId?: number
+  dataSetName?: string
   lineageCount?: number
   affectedReportCount?: number
+  impactSummaries?: Array<{
+    datasourceId?: number
+    datasourceName?: string
+    tableName?: string
+    affectedReportCount?: number
+    affectedReports?: Array<{
+      reportId?: number
+      reportName?: string
+      reportField?: string
+    }>
+  }>
 }
 
 export interface ReportSnapshotShard {

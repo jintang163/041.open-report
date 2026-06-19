@@ -96,10 +96,34 @@ public class DataLineageServiceImpl extends ServiceImpl<DataLineageMapper, DataL
             lineageMapper.deleteByReportId(reportId);
             int lineageCount = buildLineageForTemplate(template);
 
+            List<Map<String, Object>> impactSummaries = new ArrayList<>();
+            List<DataLineage> newLineages = lineageMapper.selectByReportId(reportId);
+            Map<Long, Set<String>> dsTableMap = new LinkedHashMap<>();
+            for (DataLineage lineage : newLineages) {
+                if (lineage.getDatasourceId() != null && lineage.getTableName() != null) {
+                    dsTableMap.computeIfAbsent(lineage.getDatasourceId(), k -> new LinkedHashSet<>())
+                            .add(lineage.getTableName());
+                }
+            }
+            for (Map.Entry<Long, Set<String>> entry : dsTableMap.entrySet()) {
+                Long dsId = entry.getKey();
+                for (String tableName : entry.getValue()) {
+                    List<DataLineage> affected = lineageMapper.selectAffectedReports(dsId, tableName, null);
+                    if (!affected.isEmpty()) {
+                        Map<String, Object> summary = new LinkedHashMap<>();
+                        summary.put("datasourceId", dsId);
+                        summary.put("tableName", tableName);
+                        summary.put("affectedReportCount", affected.size());
+                        impactSummaries.add(summary);
+                    }
+                }
+            }
+
             result.put("success", true);
             result.put("reportId", reportId);
             result.put("reportName", template.getTemplateName());
             result.put("lineageCount", lineageCount);
+            result.put("impactSummaries", impactSummaries);
             result.put("message", "血缘关系刷新成功，共生成 " + lineageCount + " 条血缘记录");
 
             logger.info("刷新报表血缘成功: reportId={}, lineageCount={}", reportId, lineageCount);
@@ -133,10 +157,41 @@ public class DataLineageServiceImpl extends ServiceImpl<DataLineageMapper, DataL
                 totalLineage += buildLineageForTemplate(template);
             }
 
+            List<Map<String, Object>> impactSummaries = new ArrayList<>();
+            if (!templates.isEmpty() && dataSet.getDsId() != null) {
+                DataSourceConfig dataSource = dataSourceConfigService.getById(dataSet.getDsId());
+                if (dataSource != null) {
+                    SqlParseUtils.ParseResult parseResult = SqlParseUtils.parseSql(dataSet.getSqlText());
+                    for (String table : parseResult.getTables()) {
+                        List<DataLineage> affected = lineageMapper.selectAffectedReports(
+                                dataSource.getId(), table, null);
+                        if (!affected.isEmpty()) {
+                            Map<String, Object> summary = new LinkedHashMap<>();
+                            summary.put("datasourceId", dataSource.getId());
+                            summary.put("datasourceName", dataSource.getDsName());
+                            summary.put("tableName", table);
+                            summary.put("affectedReportCount", affected.size());
+                            List<Map<String, Object>> reportSummaries = new ArrayList<>();
+                            for (DataLineage al : affected) {
+                                Map<String, Object> rs = new LinkedHashMap<>();
+                                rs.put("reportId", al.getReportId());
+                                rs.put("reportName", al.getReportName());
+                                rs.put("reportField", al.getReportField());
+                                reportSummaries.add(rs);
+                            }
+                            summary.put("affectedReports", reportSummaries);
+                            impactSummaries.add(summary);
+                        }
+                    }
+                }
+            }
+
             result.put("success", true);
             result.put("dataSetId", dataSetId);
+            result.put("dataSetName", dataSet.getSetName());
             result.put("affectedReportCount", templates.size());
             result.put("lineageCount", totalLineage);
+            result.put("impactSummaries", impactSummaries);
             result.put("message", "数据集血缘刷新成功，影响 " + templates.size() + " 个报表，共 " + totalLineage + " 条血缘记录");
 
             logger.info("刷新数据集血缘成功: dataSetId={}, affectedReports={}, lineageCount={}",
@@ -418,10 +473,247 @@ public class DataLineageServiceImpl extends ServiceImpl<DataLineageMapper, DataL
     @SuppressWarnings("unchecked")
     private int buildLineageForTemplate(ReportTemplate template) throws Exception {
         int count = 0;
+
+        String templateJson = template.getTemplateJson();
+        String dataSetBindJson = template.getDataSetBind();
+
+        Map<String, DataSet> dataSetCache = new HashMap<>();
+        Map<Long, DataSourceConfig> dataSourceCache = new HashMap<>();
+        Map<String, Object> templateData = null;
+
+        if (templateJson != null && !templateJson.trim().isEmpty()) {
+            try {
+                templateData = JSON.parseObject(templateJson,
+                        new com.alibaba.fastjson.TypeReference<Map<String, Object>>() {});
+            } catch (Exception e) {
+                logger.warn("解析templateJson失败: reportId={}", template.getId(), e);
+            }
+        }
+
+        List<Map<String, Object>> datasetsFromTemplate = Collections.emptyList();
+        if (templateData != null && templateData.get("datasets") != null) {
+            datasetsFromTemplate = (List<Map<String, Object>>) templateData.get("datasets");
+        }
+
+        Map<String, Map<String, Object>> datasetByNameOrId = new LinkedHashMap<>();
+        for (Map<String, Object> ds : datasetsFromTemplate) {
+            String dsId = ds.get("id") != null ? String.valueOf(ds.get("id")) : null;
+            String dsName = ds.get("name") != null ? ds.get("name").toString() : null;
+            if (dsId != null) datasetByNameOrId.put(dsId, ds);
+            if (dsName != null) datasetByNameOrId.put(dsName, ds);
+        }
+
+        Map<String, String> bindNameToDataSetId = new LinkedHashMap<>();
+        if (dataSetBindJson != null && !dataSetBindJson.trim().isEmpty()) {
+            try {
+                List<Map<String, Object>> bindings = JSON.parseObject(dataSetBindJson,
+                        new com.alibaba.fastjson.TypeReference<List<Map<String, Object>>>() {});
+                for (Map<String, Object> binding : bindings) {
+                    String bName = binding.get("bindName") != null ? binding.get("bindName").toString() : "default";
+                    String dsId = binding.get("dataSetId") != null ? String.valueOf(binding.get("dataSetId")) : null;
+                    if (dsId != null) {
+                        bindNameToDataSetId.put(bName, dsId);
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("解析dataSetBind失败: reportId={}", template.getId(), e);
+            }
+        }
+
+        Set<String> processedFields = new HashSet<>();
+
+        if (templateData != null) {
+            List<Map<String, Object>> sheets = (List<Map<String, Object>>) templateData.get("sheets");
+            if (sheets != null) {
+                for (Map<String, Object> sheet : sheets) {
+                    List<Map<String, Object>> cells = (List<Map<String, Object>>) sheet.get("cells");
+                    if (cells == null) continue;
+
+                    for (Map<String, Object> cell : cells) {
+                        Map<String, Object> dataBinding = (Map<String, Object>) cell.get("dataBinding");
+                        if (dataBinding == null) continue;
+
+                        String type = dataBinding.get("type") != null ? dataBinding.get("type").toString() : "";
+                        if (!"field".equals(type) && !"expression".equals(type)) continue;
+
+                        String datasetBindName = dataBinding.get("dataset") != null ? dataBinding.get("dataset").toString() : null;
+                        String field = dataBinding.get("field") != null ? dataBinding.get("field").toString() : null;
+                        String expression = dataBinding.get("expression") != null ? dataBinding.get("expression").toString() : null;
+                        String format = dataBinding.get("format") != null ? dataBinding.get("format").toString() : null;
+
+                        if (field == null && expression == null) continue;
+
+                        String cellRef = "R" + cell.get("row") + "C" + cell.get("col");
+                        String reportField = field != null ? field : cellRef;
+                        String dedupeKey = reportField + "_" + datasetBindName;
+                        if (processedFields.contains(dedupeKey)) continue;
+                        processedFields.add(dedupeKey);
+
+                        DataSet dataSet = null;
+                        String bindName = datasetBindName != null ? datasetBindName : "default";
+
+                        if (datasetBindName != null && bindNameToDataSetId.containsKey(datasetBindName)) {
+                            Long dsId = Long.valueOf(bindNameToDataSetId.get(datasetBindName));
+                            dataSet = dataSetCache.computeIfAbsent(dsId, id -> dataSetService.getById(id));
+                        } else if (datasetBindName != null && datasetByNameOrId.containsKey(datasetBindName)) {
+                            Map<String, Object> dsInfo = datasetByNameOrId.get(datasetBindName);
+                            if (dsInfo.get("id") != null) {
+                                Long dsId = Long.valueOf(dsInfo.get("id").toString());
+                                dataSet = dataSetCache.computeIfAbsent(dsId, id -> dataSetService.getById(id));
+                            }
+                        } else if (!bindNameToDataSetId.isEmpty()) {
+                            Map.Entry<String, String> firstEntry = bindNameToDataSetId.entrySet().iterator().next();
+                            Long dsId = Long.valueOf(firstEntry.getValue());
+                            dataSet = dataSetCache.computeIfAbsent(dsId, id -> dataSetService.getById(id));
+                            bindName = firstEntry.getKey();
+                        }
+
+                        if (dataSet == null) {
+                            logger.debug("未找到数据集: reportId={}, dataset={}", template.getId(), datasetBindName);
+                            continue;
+                        }
+
+                        DataSourceConfig dataSource = dataSourceCache.computeIfAbsent(
+                                dataSet.getDsId(), id -> dataSourceConfigService.getById(id));
+
+                        SqlParseUtils.ParseResult parseResult = SqlParseUtils.parseSql(dataSet.getSqlText());
+
+                        String dataSetField = field != null ? field : expression;
+                        String lineageType = "DIRECT";
+                        if ("expression".equals(type) || (expression != null && !expression.equals(field))) {
+                            if (SqlParseUtils.isAggregationExpression(expression)) {
+                                lineageType = "AGGREGATION";
+                            } else {
+                                lineageType = "EXPRESSION";
+                            }
+                            dataSetField = expression;
+                        }
+
+                        String matchingColumn = findMatchingColumn(dataSetField, parseResult);
+                        String mainTable = parseResult.getMainTable();
+
+                        DataLineage lineage = new DataLineage();
+                        lineage.setReportId(template.getId());
+                        lineage.setReportName(template.getTemplateName());
+                        lineage.setReportField(reportField);
+                        lineage.setReportFieldTitle(reportField);
+                        lineage.setDataSetId(dataSet.getId());
+                        lineage.setDataSetName(dataSet.getSetName());
+                        lineage.setDataSetField(dataSetField);
+                        lineage.setBindName(bindName);
+                        lineage.setExpression(expression != null ? expression : dataSetField);
+                        lineage.setLineageType(lineageType);
+
+                        if (dataSource != null) {
+                            lineage.setDatasourceId(dataSource.getId());
+                            lineage.setDatasourceName(dataSource.getDsName());
+                            lineage.setDatasourceType(dataSource.getDsType());
+                            lineage.setDatabaseName(SqlParseUtils.extractDatabaseNameFromJdbcUrl(dataSource.getJdbcUrl()));
+                            lineage.setSchemaName(dataSource.getSchemaName());
+                        }
+
+                        lineage.setTableName(mainTable);
+                        lineage.setColumnName(matchingColumn);
+                        lineage.setSourceTables(JSON.toJSONString(parseResult.getTables()));
+                        lineage.setSourceColumns(JSON.toJSONString(parseResult.getColumns()));
+                        lineage.setSqlText(dataSet.getSqlText());
+                        lineage.setStatus(1);
+                        lineage.setCreateTime(LocalDateTime.now());
+                        lineage.setUpdateTime(LocalDateTime.now());
+
+                        String hashSource = template.getId() + "_" + reportField + "_" + dataSet.getId() + "_" + dataSetField;
+                        lineage.setLineageHash(SqlParseUtils.calculateHash(hashSource));
+
+                        if (lineageMapper.countByLineageHash(lineage.getLineageHash()) == 0) {
+                            lineageMapper.insert(lineage);
+                            count++;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (count == 0 && templateData != null) {
+            List<Map<String, Object>> charts = (List<Map<String, Object>>) templateData.get("charts");
+            if (charts != null) {
+                for (Map<String, Object> chart : charts) {
+                    String dsRef = chart.get("datasetId") != null ? chart.get("datasetId").toString() : null;
+                    if (dsRef == null) continue;
+
+                    DataSet dataSet = dataSetCache.computeIfAbsent(Long.valueOf(dsRef), id -> dataSetService.getById(id));
+                    if (dataSet == null) continue;
+
+                    DataSourceConfig dataSource = dataSourceCache.computeIfAbsent(
+                            dataSet.getDsId(), id -> dataSourceConfigService.getById(id));
+
+                    SqlParseUtils.ParseResult parseResult = SqlParseUtils.parseSql(dataSet.getSqlText());
+
+                    String chartTitle = chart.get("title") != null ? chart.get("title").toString() : "chart_" + chart.hashCode();
+                    String chartType = chart.get("chartType") != null ? chart.get("chartType").toString() : "unknown";
+
+                    for (String col : parseResult.getSelectColumns()) {
+                        if (col.equals("*")) continue;
+                        String dedupeKey = col + "_chart_" + dsRef;
+                        if (processedFields.contains(dedupeKey)) continue;
+                        processedFields.add(dedupeKey);
+
+                        DataLineage lineage = new DataLineage();
+                        lineage.setReportId(template.getId());
+                        lineage.setReportName(template.getTemplateName());
+                        lineage.setReportField(col);
+                        lineage.setReportFieldTitle(col);
+                        lineage.setDataSetId(dataSet.getId());
+                        lineage.setDataSetName(dataSet.getSetName());
+                        lineage.setDataSetField(col);
+                        lineage.setBindName("chart_" + chartTitle);
+                        lineage.setExpression(col);
+                        lineage.setLineageType("DIRECT");
+
+                        if (dataSource != null) {
+                            lineage.setDatasourceId(dataSource.getId());
+                            lineage.setDatasourceName(dataSource.getDsName());
+                            lineage.setDatasourceType(dataSource.getDsType());
+                            lineage.setDatabaseName(SqlParseUtils.extractDatabaseNameFromJdbcUrl(dataSource.getJdbcUrl()));
+                            lineage.setSchemaName(dataSource.getSchemaName());
+                        }
+
+                        lineage.setTableName(parseResult.getMainTable());
+                        lineage.setColumnName(findMatchingColumn(col, parseResult));
+                        lineage.setSourceTables(JSON.toJSONString(parseResult.getTables()));
+                        lineage.setSourceColumns(JSON.toJSONString(parseResult.getColumns()));
+                        lineage.setSqlText(dataSet.getSqlText());
+                        lineage.setStatus(1);
+                        lineage.setCreateTime(LocalDateTime.now());
+                        lineage.setUpdateTime(LocalDateTime.now());
+
+                        String hashSource = template.getId() + "_" + col + "_" + dataSet.getId() + "_" + col;
+                        lineage.setLineageHash(SqlParseUtils.calculateHash(hashSource));
+
+                        if (lineageMapper.countByLineageHash(lineage.getLineageHash()) == 0) {
+                            lineageMapper.insert(lineage);
+                            count++;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (count == 0) {
+            count += buildLineageFromFieldConfig(template, dataSetCache, dataSourceCache, processedFields);
+        }
+
+        return count;
+    }
+
+    @SuppressWarnings("unchecked")
+    private int buildLineageFromFieldConfig(ReportTemplate template,
+                                             Map<String, DataSet> dataSetCache,
+                                             Map<Long, DataSourceConfig> dataSourceCache,
+                                             Set<String> processedFields) throws Exception {
+        int count = 0;
         String dataSetBindJson = template.getDataSetBind();
 
         if (dataSetBindJson == null || dataSetBindJson.trim().isEmpty()) {
-            logger.warn("报表无数据集绑定: reportId={}", template.getId());
             return 0;
         }
 
@@ -430,12 +722,8 @@ public class DataLineageServiceImpl extends ServiceImpl<DataLineageMapper, DataL
             bindings = JSON.parseObject(dataSetBindJson,
                     new com.alibaba.fastjson.TypeReference<List<Map<String, Object>>>() {});
         } catch (Exception e) {
-            logger.error("解析数据集绑定失败: reportId={}", template.getId(), e);
             return 0;
         }
-
-        Map<String, DataSet> dataSetCache = new HashMap<>();
-        Map<Long, DataSourceConfig> dataSourceCache = new HashMap<>();
 
         for (Map<String, Object> binding : bindings) {
             Long dataSetId = Long.valueOf(binding.get("dataSetId").toString());
@@ -449,67 +737,90 @@ public class DataLineageServiceImpl extends ServiceImpl<DataLineageMapper, DataL
 
             SqlParseUtils.ParseResult parseResult = SqlParseUtils.parseSql(dataSet.getSqlText());
 
-            List<Map<String, Object>> fields = (List<Map<String, Object>>) binding.get("fields");
-            if (fields == null) fields = Collections.emptyList();
-
-            for (Map<String, Object> field : fields) {
-                String reportField = field.get("reportField") != null ? field.get("reportField").toString() : null;
-                String reportFieldTitle = field.get("title") != null ? field.get("title").toString() : reportField;
-                String dataSetField = field.get("dataSetField") != null ? field.get("dataSetField").toString() : reportField;
-                String expression = field.get("expression") != null ? field.get("expression").toString() : dataSetField;
-
-                if (reportField == null) continue;
-
-                String lineageType = "DIRECT";
-                if (SqlParseUtils.isAggregationExpression(expression)) {
-                    lineageType = "AGGREGATION";
-                } else if (!expression.equals(dataSetField)) {
-                    lineageType = "EXPRESSION";
+            List<Map<String, Object>> fieldConfigList = Collections.emptyList();
+            if (dataSet.getFieldConfig() != null && !dataSet.getFieldConfig().trim().isEmpty()) {
+                try {
+                    fieldConfigList = JSON.parseObject(dataSet.getFieldConfig(),
+                            new com.alibaba.fastjson.TypeReference<List<Map<String, Object>>>() {});
+                } catch (Exception e) {
+                    logger.warn("解析fieldConfig失败: dataSetId={}", dataSetId, e);
                 }
+            }
 
-                String matchingColumn = findMatchingColumn(dataSetField, parseResult);
-                String mainTable = parseResult.getMainTable();
+            if (fieldConfigList.isEmpty() && !parseResult.getSelectColumns().isEmpty()) {
+                for (String col : parseResult.getSelectColumns()) {
+                    if (col.equals("*")) continue;
+                    String dedupeKey = col + "_" + bindName;
+                    if (processedFields.contains(dedupeKey)) continue;
+                    processedFields.add(dedupeKey);
 
-                DataLineage lineage = new DataLineage();
-                lineage.setReportId(template.getId());
-                lineage.setReportName(template.getTemplateName());
-                lineage.setReportField(reportField);
-                lineage.setReportFieldTitle(reportFieldTitle);
-                lineage.setDataSetId(dataSet.getId());
-                lineage.setDataSetName(dataSet.getSetName());
-                lineage.setDataSetField(dataSetField);
-                lineage.setBindName(bindName);
-                lineage.setExpression(expression);
-                lineage.setLineageType(lineageType);
-
-                if (dataSource != null) {
-                    lineage.setDatasourceId(dataSource.getId());
-                    lineage.setDatasourceName(dataSource.getDsName());
-                    lineage.setDatasourceType(dataSource.getDsType());
-                    lineage.setDatabaseName(SqlParseUtils.extractDatabaseNameFromJdbcUrl(dataSource.getJdbcUrl()));
-                    lineage.setSchemaName(dataSource.getSchemaName());
+                    count += insertLineageRecord(template, dataSet, dataSource,
+                            parseResult, col, col, col, "DIRECT", bindName);
                 }
+            } else {
+                for (Map<String, Object> fieldConf : fieldConfigList) {
+                    String fieldName = fieldConf.get("name") != null ? fieldConf.get("name").toString() : null;
+                    String fieldLabel = fieldConf.get("label") != null ? fieldConf.get("label").toString() : fieldName;
+                    if (fieldName == null) continue;
 
-                lineage.setTableName(mainTable);
-                lineage.setColumnName(matchingColumn);
-                lineage.setSourceTables(JSON.toJSONString(parseResult.getTables()));
-                lineage.setSourceColumns(JSON.toJSONString(parseResult.getColumns()));
-                lineage.setSqlText(dataSet.getSqlText());
-                lineage.setStatus(1);
-                lineage.setCreateTime(LocalDateTime.now());
-                lineage.setUpdateTime(LocalDateTime.now());
+                    String dedupeKey = fieldName + "_" + bindName;
+                    if (processedFields.contains(dedupeKey)) continue;
+                    processedFields.add(dedupeKey);
 
-                String hashSource = template.getId() + "_" + reportField + "_" + dataSetId + "_" + dataSetField;
-                lineage.setLineageHash(SqlParseUtils.calculateHash(hashSource));
-
-                if (lineageMapper.countByLineageHash(lineage.getLineageHash()) == 0) {
-                    lineageMapper.insert(lineage);
-                    count++;
+                    count += insertLineageRecord(template, dataSet, dataSource,
+                            parseResult, fieldName, fieldLabel, fieldName, "DIRECT", bindName);
                 }
             }
         }
 
         return count;
+    }
+
+    private int insertLineageRecord(ReportTemplate template, DataSet dataSet,
+                                     DataSourceConfig dataSource,
+                                     SqlParseUtils.ParseResult parseResult,
+                                     String reportField, String reportFieldTitle,
+                                     String dataSetField, String lineageType,
+                                     String bindName) {
+        String matchingColumn = findMatchingColumn(dataSetField, parseResult);
+
+        DataLineage lineage = new DataLineage();
+        lineage.setReportId(template.getId());
+        lineage.setReportName(template.getTemplateName());
+        lineage.setReportField(reportField);
+        lineage.setReportFieldTitle(reportFieldTitle);
+        lineage.setDataSetId(dataSet.getId());
+        lineage.setDataSetName(dataSet.getSetName());
+        lineage.setDataSetField(dataSetField);
+        lineage.setBindName(bindName);
+        lineage.setExpression(dataSetField);
+        lineage.setLineageType(lineageType);
+
+        if (dataSource != null) {
+            lineage.setDatasourceId(dataSource.getId());
+            lineage.setDatasourceName(dataSource.getDsName());
+            lineage.setDatasourceType(dataSource.getDsType());
+            lineage.setDatabaseName(SqlParseUtils.extractDatabaseNameFromJdbcUrl(dataSource.getJdbcUrl()));
+            lineage.setSchemaName(dataSource.getSchemaName());
+        }
+
+        lineage.setTableName(parseResult.getMainTable());
+        lineage.setColumnName(matchingColumn);
+        lineage.setSourceTables(JSON.toJSONString(parseResult.getTables()));
+        lineage.setSourceColumns(JSON.toJSONString(parseResult.getColumns()));
+        lineage.setSqlText(dataSet.getSqlText());
+        lineage.setStatus(1);
+        lineage.setCreateTime(LocalDateTime.now());
+        lineage.setUpdateTime(LocalDateTime.now());
+
+        String hashSource = template.getId() + "_" + reportField + "_" + dataSet.getId() + "_" + dataSetField;
+        lineage.setLineageHash(SqlParseUtils.calculateHash(hashSource));
+
+        if (lineageMapper.countByLineageHash(lineage.getLineageHash()) == 0) {
+            lineageMapper.insert(lineage);
+            return 1;
+        }
+        return 0;
     }
 
     private String findMatchingColumn(String dataSetField, SqlParseUtils.ParseResult parseResult) {

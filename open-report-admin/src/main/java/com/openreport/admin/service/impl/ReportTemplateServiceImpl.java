@@ -9,6 +9,7 @@ import com.openreport.admin.mapper.ReportTemplateMapper;
 import com.openreport.admin.service.ReportTemplateService;
 import com.openreport.admin.service.ReportTemplateSnapshotService;
 import com.openreport.admin.service.TemplateEditLockService;
+import com.openreport.admin.service.DataLineageService;
 import com.openreport.common.enums.ReportStatusEnum;
 import com.openreport.common.result.ResultCode;
 import org.apache.commons.lang3.StringUtils;
@@ -23,6 +24,8 @@ import java.util.UUID;
 @Service
 public class ReportTemplateServiceImpl extends ServiceImpl<ReportTemplateMapper, ReportTemplate> implements ReportTemplateService {
 
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ReportTemplateServiceImpl.class);
+
     @Autowired
     private ReportTemplateSnapshotService snapshotService;
 
@@ -31,6 +34,9 @@ public class ReportTemplateServiceImpl extends ServiceImpl<ReportTemplateMapper,
 
     @Autowired
     private TemplateEditLockService templateEditLockService;
+
+    @Autowired
+    private DataLineageService dataLineageService;
 
     @Override
     public Page<ReportTemplate> pageList(Integer pageNum, Integer pageSize, String templateName, Integer templateType) {
@@ -133,6 +139,12 @@ public class ReportTemplateServiceImpl extends ServiceImpl<ReportTemplateMapper,
         }
 
         pushService.pushTemplateChange(template, isNew ? "INSERT" : "UPDATE");
+
+        try {
+            dataLineageService.refreshLineageForReport(template.getId());
+        } catch (Exception e) {
+            logger.warn("自动刷新血缘关系失败（不影响保存）: reportId={}", template.getId(), e);
+        }
 
         return template;
     }
