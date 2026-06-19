@@ -11,16 +11,18 @@ public class SecurityContext implements Serializable {
     private Long userId;
     private String username;
     private Long deptId;
+    private Long tenantId;
     private Set<String> permissions;
     private List<Long> roleIds;
 
     public SecurityContext() {
     }
 
-    public SecurityContext(Long userId, String username, Long deptId, Set<String> permissions, List<Long> roleIds) {
+    public SecurityContext(Long userId, String username, Long deptId, Long tenantId, Set<String> permissions, List<Long> roleIds) {
         this.userId = userId;
         this.username = username;
         this.deptId = deptId;
+        this.tenantId = tenantId;
         this.permissions = permissions;
         this.roleIds = roleIds;
     }
@@ -47,6 +49,14 @@ public class SecurityContext implements Serializable {
 
     public void setDeptId(Long deptId) {
         this.deptId = deptId;
+    }
+
+    public Long getTenantId() {
+        return tenantId;
+    }
+
+    public void setTenantId(Long tenantId) {
+        this.tenantId = tenantId;
     }
 
     public Set<String> getPermissions() {

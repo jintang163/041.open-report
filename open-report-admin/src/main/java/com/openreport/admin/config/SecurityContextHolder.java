@@ -31,6 +31,11 @@ public class SecurityContextHolder {
         return ctx != null ? ctx.getDeptId() : null;
     }
 
+    public static Long getTenantId() {
+        SecurityContext ctx = get();
+        return ctx != null ? ctx.getTenantId() : null;
+    }
+
     public static boolean hasPermission(String permission) {
         SecurityContext ctx = get();
         return ctx != null && ctx.hasPermission(permission);

@@ -13,6 +13,8 @@ import RoleManagement from '@/pages/system/role'
 import MenuManagement from '@/pages/system/menu'
 import RowSecurityManagement from '@/pages/system/row-security'
 import FieldPermissionManagement from '@/pages/system/field-permission'
+import TenantManagement from '@/pages/system/tenant'
+import TenantDatasourceMappingPage from '@/pages/system/tenant-datasource'
 import DatasourceManagement from '@/pages/datasource'
 import DatasetManagement from '@/pages/dataset'
 import ReportManagement from '@/pages/report'
@@ -180,6 +182,16 @@ const routes = [
             path: 'system/field-permission',
             element: withLoading(FieldPermissionManagement)(),
             meta: { title: '字段权限', icon: 'LockOutlined', parent: '系统管理' }
+          },
+          {
+            path: 'system/tenant',
+            element: withLoading(TenantManagement)(),
+            meta: { title: '租户管理', icon: 'BankOutlined', parent: '系统管理' }
+          },
+          {
+            path: 'system/tenant-datasource',
+            element: withLoading(TenantDatasourceMappingPage)(),
+            meta: { title: '租户数据源映射', icon: 'SwapOutlined', parent: '系统管理' }
           },
           {
             path: 'embed/demo',

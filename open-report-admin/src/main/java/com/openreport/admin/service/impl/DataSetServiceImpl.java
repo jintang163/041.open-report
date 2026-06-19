@@ -11,6 +11,7 @@ import com.openreport.admin.mapper.DataSetMapper;
 import com.openreport.admin.service.DataSecurityService;
 import com.openreport.admin.service.DataSourceConfigService;
 import com.openreport.admin.service.DataSetService;
+import com.openreport.admin.service.TenantDatasourceMappingService;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,9 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
 
     @Autowired
     private DataSecurityService dataSecurityService;
+
+    @Autowired
+    private TenantDatasourceMappingService tenantDatasourceMappingService;
 
     @Override
     public Page<DataSet> pageList(Integer pageNum, Integer pageSize, String setName, Long dsId) {
@@ -61,7 +65,7 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
             result.put("message", "数据集不存在");
             return result;
         }
-        DataSourceConfig dsConfig = dataSourceConfigService.getById(dataSet.getDsId());
+        DataSourceConfig dsConfig = tenantDatasourceMappingService.resolveDatasourceForCurrentUser(dataSet.getDsId());
         if (dsConfig == null) {
             result.put("success", false);
             result.put("message", "数据源不存在");
@@ -149,7 +153,7 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
         if (dataSet == null) {
             throw new IllegalArgumentException("数据集不存在");
         }
-        DataSourceConfig dsConfig = dataSourceConfigService.getById(dataSet.getDsId());
+        DataSourceConfig dsConfig = tenantDatasourceMappingService.resolveDatasourceForCurrentUser(dataSet.getDsId());
         if (dsConfig == null) {
             throw new IllegalArgumentException("数据源不存在");
         }
@@ -195,7 +199,7 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
             result.put("message", "数据集不存在");
             return result;
         }
-        DataSourceConfig dsConfig = dataSourceConfigService.getById(dataSet.getDsId());
+        DataSourceConfig dsConfig = tenantDatasourceMappingService.resolveDatasourceForCurrentUser(dataSet.getDsId());
         if (dsConfig == null) {
             result.put("success", false);
             result.put("message", "数据源不存在");
@@ -299,7 +303,7 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
         if (dataSet == null) {
             return -1L;
         }
-        DataSourceConfig dsConfig = dataSourceConfigService.getById(dataSet.getDsId());
+        DataSourceConfig dsConfig = tenantDatasourceMappingService.resolveDatasourceForCurrentUser(dataSet.getDsId());
         if (dsConfig == null) {
             return -1L;
         }
@@ -344,7 +348,7 @@ public class DataSetServiceImpl extends ServiceImpl<DataSetMapper, DataSet> impl
         if (dataSet == null || batchCallback == null) {
             return;
         }
-        DataSourceConfig dsConfig = dataSourceConfigService.getById(dataSet.getDsId());
+        DataSourceConfig dsConfig = tenantDatasourceMappingService.resolveDatasourceForCurrentUser(dataSet.getDsId());
         if (dsConfig == null) {
             return;
         }

@@ -106,6 +106,7 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
     private void buildSecurityContext(Long userId, String username) {
         com.openreport.admin.entity.SysUser user = sysUserService.getById(userId);
         Long deptId = user != null ? user.getDeptId() : null;
+        Long tenantId = user != null ? user.getTenantId() : null;
         List<com.openreport.admin.entity.SysRole> roles = sysRoleService.listByUserId(userId);
         List<Long> roleIds = roles.stream().map(com.openreport.admin.entity.SysRole::getId).collect(Collectors.toList());
         List<com.openreport.admin.entity.SysMenu> menus = sysMenuService.listByUserId(userId);
@@ -120,7 +121,7 @@ public class JwtTokenInterceptor implements HandlerInterceptor {
         if (isSuperAdmin) {
             permissions.add("*");
         }
-        SecurityContext securityContext = new SecurityContext(userId, username, deptId, permissions, roleIds);
+        SecurityContext securityContext = new SecurityContext(userId, username, deptId, tenantId, permissions, roleIds);
         SecurityContextHolder.set(securityContext);
     }
 

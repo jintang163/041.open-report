@@ -8,6 +8,7 @@ export interface User {
   avatar?: string
   status?: number
   deptId?: number
+  tenantId?: number
   createTime?: string
   updateTime?: string
   roles?: RoleInfo[]
@@ -940,4 +941,42 @@ export interface CommentCellRef {
 export interface CommentChartRef {
   chartId: string
   commentCount: number
+}
+
+export interface SysTenant {
+  id?: number
+  tenantName: string
+  tenantCode?: string
+  description?: string
+  status?: number
+  createTime?: string
+  updateTime?: string
+}
+
+export interface TenantDatasourceMapping {
+  id?: number
+  tenantId: number
+  originalDsId: number
+  targetDsId: number
+  originalDsName?: string
+  originalDsCode?: string
+  targetDsName?: string
+  targetDsCode?: string
+  status?: number
+  createTime?: string
+  updateTime?: string
+}
+
+export interface TenantDatasourceMappingVO {
+  id?: number
+  tenantId: number
+  originalDsId: number
+  targetDsId: number
+  originalDsName?: string
+  originalDsCode?: string
+  targetDsName?: string
+  targetDsCode?: string
+  status?: number
+  createTime?: string
+  updateTime?: string
 }

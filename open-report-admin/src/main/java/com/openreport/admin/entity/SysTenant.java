@@ -11,40 +11,25 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("sys_user")
-public class SysUser implements Serializable {
+@TableName("sys_tenant")
+public class SysTenant implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    @TableField("username")
-    private String username;
+    @TableField("tenant_name")
+    private String tenantName;
 
-    @TableField("password")
-    private String password;
+    @TableField("tenant_code")
+    private String tenantCode;
 
-    @TableField("nickname")
-    private String nickname;
-
-    @TableField("email")
-    private String email;
-
-    @TableField("phone")
-    private String phone;
-
-    @TableField("avatar")
-    private String avatar;
+    @TableField("description")
+    private String description;
 
     @TableField("status")
     private Integer status;
-
-    @TableField("dept_id")
-    private Long deptId;
-
-    @TableField("tenant_id")
-    private Long tenantId;
 
     @TableField("create_time")
     private LocalDateTime createTime;
