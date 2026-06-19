@@ -30,8 +30,14 @@ public interface ReportCommentMapper extends BaseMapper<ReportComment> {
     @Select("SELECT DISTINCT cell_ref FROM report_comment WHERE template_id = #{templateId} AND cell_ref IS NOT NULL AND deleted = 0")
     List<String> getCellRefsWithComments(@Param("templateId") Long templateId);
 
-    @Select("SELECT DISTINCT chart_id FROM report_comment WHERE template_id = #{chartId} AND chart_id IS NOT NULL AND deleted = 0")
-    List<String> getChartIdsWithComments(@Param("chartId") Long templateId);
+    @Select("SELECT DISTINCT chart_id FROM report_comment WHERE template_id = #{templateId} AND chart_id IS NOT NULL AND deleted = 0")
+    List<String> getChartIdsWithComments(@Param("templateId") Long templateId);
+
+    @Select("SELECT DISTINCT cell_ref FROM report_comment WHERE template_id = #{templateId} AND snapshot_version = #{snapshotVersion} AND cell_ref IS NOT NULL AND deleted = 0")
+    List<String> getCellRefsWithCommentsByVersion(@Param("templateId") Long templateId, @Param("snapshotVersion") Integer snapshotVersion);
+
+    @Select("SELECT DISTINCT chart_id FROM report_comment WHERE template_id = #{templateId} AND snapshot_version = #{snapshotVersion} AND chart_id IS NOT NULL AND deleted = 0")
+    List<String> getChartIdsWithCommentsByVersion(@Param("templateId") Long templateId, @Param("snapshotVersion") Integer snapshotVersion);
 
     @Update("UPDATE report_comment SET like_count = like_count + #{delta} WHERE id = #{id} AND deleted = 0")
     int updateLikeCount(@Param("id") Long id, @Param("delta") int delta);

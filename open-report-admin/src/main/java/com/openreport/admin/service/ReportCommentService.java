@@ -19,6 +19,10 @@ public interface ReportCommentService extends IService<ReportComment> {
 
     List<String> getChartIdsWithComments(Long templateId);
 
+    List<String> getCellRefsWithCommentsByVersion(Long templateId, Integer snapshotVersion);
+
+    List<String> getChartIdsWithCommentsByVersion(Long templateId, Integer snapshotVersion);
+
     int countByTemplateId(Long templateId);
 
     ReportComment addComment(ReportComment comment, Long userId, String userName);

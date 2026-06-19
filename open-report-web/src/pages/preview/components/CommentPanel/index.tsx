@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react'
-import { Input, List, Avatar, Button, Space, Popconfirm, Typography, Empty, Divider } from 'antd'
+import { Input, List, Avatar, Button, Space, Popconfirm, Typography, Empty, Divider, Tag } from 'antd'
 import {
   LikeOutlined,
   LikeFilled,
@@ -123,6 +123,9 @@ interface CommentPanelProps {
   loading?: boolean
   currentUserId?: number
   title?: string
+  selectedCellRef?: string | null
+  selectedChartId?: string | null
+  snapshotVersion?: number | null
   onAddComment: (content: string, mentionUserIds: string) => void
   onAddReply: (parentId: number, content: string, replyToUserId: number, replyToUserName: string, mentionUserIds: string) => void
   onLike: (commentId: number) => void
@@ -134,6 +137,9 @@ const CommentPanel: React.FC<CommentPanelProps> = ({
   loading = false,
   currentUserId,
   title,
+  selectedCellRef,
+  selectedChartId,
+  snapshotVersion,
   onAddComment,
   onAddReply,
   onLike,
@@ -227,6 +233,22 @@ const CommentPanel: React.FC<CommentPanelProps> = ({
       </div>
 
       <div style={{ borderTop: '1px solid #f0f0f0', padding: 12 }}>
+        {(selectedCellRef || selectedChartId || snapshotVersion) && !replyTo && (
+          <div
+            style={{
+              background: '#f6f8fa',
+              padding: '6px 10px',
+              borderRadius: 6,
+              marginBottom: 8,
+              fontSize: 12,
+              color: '#666'
+            }}
+          >
+            {selectedCellRef && <span>评论将绑定到 <Tag color="blue">单元格 {selectedCellRef}</Tag></span>}
+            {selectedChartId && <span>评论将绑定到 <Tag color="blue">图表 {selectedChartId}</Tag></span>}
+            {snapshotVersion && <span>（版本 v{snapshotVersion}）</span>}
+          </div>
+        )}
         {replyTo && (
           <div
             style={{

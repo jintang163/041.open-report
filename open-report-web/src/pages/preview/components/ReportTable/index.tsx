@@ -1,17 +1,21 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useCallback } from 'react'
 import { Table, Empty, Spin, Input, Tag } from 'antd'
 import type { TableProps, TablePaginationConfig } from 'antd'
 import { usePreviewStore } from '../../store/preview'
+import { useCommentStore } from '../../store/comment'
 import { TableData, TableColumn, parseHtmlTable } from '../../utils/report'
+import { getCellRef } from '../../utils/cellRef'
 import VirtualScrollTable from '@/components/VirtualScrollTable'
+import CommentBubble from '../CommentBubble'
 
 interface ReportTableProps {
   data?: TableData
   height?: number | string
   showSearch?: boolean
+  onCellClick?: (cellRef: string, value: any) => void
 }
 
-const ReportTable: React.FC<ReportTableProps> = ({ data, height, showSearch = false }) => {
+const ReportTable: React.FC<ReportTableProps> = ({ data, height, showSearch = false, onCellClick }) => {
   const storeData = usePreviewStore((state) => state.reportData)
   const loading = usePreviewStore((state) => state.loading)
   const pageMode = usePreviewStore((state) => state.pageMode)
@@ -21,6 +25,12 @@ const ReportTable: React.FC<ReportTableProps> = ({ data, height, showSearch = fa
   const pageLoading = usePreviewStore((state) => state.pageLoading)
   const totalRows = usePreviewStore((state) => state.totalRows)
   const loadMoreData = usePreviewStore((state) => state.loadMoreData)
+
+  const getCellCommentCount = useCommentStore((state) => state.getCellCommentCount)
+  const selectedCellRef = useCommentStore((state) => state.selectedCellRef)
+  const setSelectedCellRef = useCommentStore((state) => state.setSelectedCellRef)
+  const setSelectedChartId = useCommentStore((state) => state.setSelectedChartId)
+
   const [searchText, setSearchText] = useState('')
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
@@ -40,12 +50,27 @@ const ReportTable: React.FC<ReportTableProps> = ({ data, height, showSearch = fa
     return undefined
   }, [data, storeData])
 
+  const handleCellClick = useCallback((cellRef: string, value: any) => {
+    setSelectedChartId(null)
+    setSelectedCellRef(cellRef)
+    onCellClick?.(cellRef, value)
+  }, [setSelectedCellRef, setSelectedChartId, onCellClick])
+
+  const getActualRowIndex = useCallback((displayIndex: number) => {
+    return (pagination.current! - 1) * pagination.pageSize! + displayIndex
+  }, [pagination])
+
   const columns = useMemo(() => {
     if (!tableData?.columns) return []
-    return tableData.columns.map((col: TableColumn) => ({
+    return tableData.columns.map((col: TableColumn, colIndex: number) => ({
       title: (
-        <span style={{ whiteSpace: 'nowrap' }}>
+        <span style={{ whiteSpace: 'nowrap', position: 'relative', display: 'inline-block', paddingRight: 8 }}>
           {col.title}
+          <CommentBubble
+            count={getCellCommentCount(getCellRef(-1, colIndex))}
+            active={selectedCellRef === getCellRef(-1, colIndex)}
+            onClick={() => handleCellClick(getCellRef(-1, colIndex), col.title)}
+          />
         </span>
       ),
       dataIndex: col.dataIndex,
@@ -57,9 +82,47 @@ const ReportTable: React.FC<ReportTableProps> = ({ data, height, showSearch = fa
       onFilter: col.filters
         ? (value: any, record: any) => record[col.dataIndex] === value
         : undefined,
-      render: col.render
+      render: (text: any, record: any, index: number) => {
+        const actualRowIndex = getActualRowIndex(index)
+        const cellRef = getCellRef(actualRowIndex, colIndex)
+        const commentCount = getCellCommentCount(cellRef)
+        const isActive = selectedCellRef === cellRef
+
+        const originalRender = col.render ? col.render(text, record, index) : text
+
+        return (
+          <div
+            onClick={() => handleCellClick(cellRef, text)}
+            style={{
+              position: 'relative',
+              paddingRight: commentCount > 0 ? 24 : 0,
+              cursor: 'pointer',
+              background: isActive ? '#e6f4ff' : 'transparent',
+              borderRadius: 4,
+              transition: 'background 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              if (!isActive) {
+                e.currentTarget.style.background = '#f5f5f5'
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isActive) {
+                e.currentTarget.style.background = 'transparent'
+              }
+            }}
+          >
+            {originalRender}
+            <CommentBubble
+              count={commentCount}
+              active={isActive}
+              onClick={() => handleCellClick(cellRef, text)}
+            />
+          </div>
+        )
+      }
     }))
-  }, [tableData])
+  }, [tableData, getCellCommentCount, selectedCellRef, getActualRowIndex, handleCellClick])
 
   const virtualColumns = useMemo(() => {
     if (!pageColumns || pageColumns.length === 0) return []

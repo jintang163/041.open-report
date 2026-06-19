@@ -96,6 +96,12 @@ const PreviewPage: React.FC = () => {
   const loadCommentCount = commentStore.loadCommentCount
   const loadCellRefs = commentStore.loadCellRefs
   const loadChartIds = commentStore.loadChartIds
+  const loadCellRefsByVersion = commentStore.loadCellRefsByVersion
+  const loadChartIdsByVersion = commentStore.loadChartIdsByVersion
+  const setSnapshotVersion = commentStore.setSnapshotVersion
+  const selectedCellRef = commentStore.selectedCellRef
+  const selectedChartId = commentStore.selectedChartId
+  const snapshotVersion = commentStore.snapshotVersion
   const resetComment = commentStore.reset
 
   const setReportId = usePreviewStore((state) => state.setReportId)
@@ -183,6 +189,22 @@ const PreviewPage: React.FC = () => {
     message.loading({ content: '正在加载数据...', key: 'snapshot-load', duration: 0 })
     try {
       await executeReportWithSnapshotMode()
+
+      if (mode === 'realtime' || mode === 'latest') {
+        loadComments(Number(id))
+        loadCellRefs(Number(id))
+        loadChartIds(Number(id))
+        setSnapshotVersion(null)
+      } else {
+        const snapshot = snapshotList.find((s: any) => s.id === selectedSnapshotId)
+        if (snapshot?.version) {
+          loadComments(Number(id), snapshot.version)
+          loadCellRefsByVersion(Number(id), snapshot.version)
+          loadChartIdsByVersion(Number(id), snapshot.version)
+          setSnapshotVersion(snapshot.version)
+        }
+      }
+
       message.success({ content: mode === 'realtime' ? '已切换到实时数据' : (mode === 'latest' ? '已加载最新快照' : '已加载快照数据'), key: 'snapshot-load' })
     } catch (err: any) {
       message.error({ content: err?.message || '加载失败', key: 'snapshot-load' })
@@ -196,6 +218,15 @@ const PreviewPage: React.FC = () => {
     message.loading({ content: '正在加载快照数据...', key: 'snapshot-load', duration: 0 })
     try {
       await executeReportWithSnapshotMode()
+
+      const snapshot = snapshotList.find((s: any) => s.id === snapshotId)
+      if (snapshot?.version) {
+        loadComments(Number(id), snapshot.version)
+        loadCellRefsByVersion(Number(id), snapshot.version)
+        loadChartIdsByVersion(Number(id), snapshot.version)
+        setSnapshotVersion(snapshot.version)
+      }
+
       message.success({ content: '快照数据加载成功', key: 'snapshot-load' })
     } catch (err: any) {
       message.error({ content: err?.message || '加载失败', key: 'snapshot-load' })
@@ -290,6 +321,12 @@ const PreviewPage: React.FC = () => {
       message.error('操作失败')
     }
   }
+
+  useEffect(() => {
+    if (selectedCellRef || selectedChartId) {
+      setCommentVisible(true)
+    }
+  }, [selectedCellRef, selectedChartId])
 
   useEffect(() => {
     toggleMobile(isMobileDevice())
@@ -668,9 +705,32 @@ const PreviewPage: React.FC = () => {
               }}
             >
               <CommentPanel
-                comments={comments}
+                comments={(() => {
+                  if (selectedCellRef) {
+                    return comments.filter((c) => c.cellRef === selectedCellRef)
+                  }
+                  if (selectedChartId) {
+                    return comments.filter((c) => c.chartId === selectedChartId)
+                  }
+                  return comments
+                })()}
                 loading={commentLoading}
-                title={`评论 (${commentTotalCount})`}
+                title={(() => {
+                  if (selectedCellRef) {
+                    return `评论 - 单元格 ${selectedCellRef}`
+                  }
+                  if (selectedChartId) {
+                    const chart = reportData?.charts?.find((c: any) => String(c.id) === selectedChartId)
+                    return `评论 - 图表 ${chart?.title || selectedChartId}`
+                  }
+                  if (snapshotVersion) {
+                    return `评论 (v${snapshotVersion}) - ${commentTotalCount}`
+                  }
+                  return `评论 (${commentTotalCount})`
+                })()}
+                selectedCellRef={selectedCellRef}
+                selectedChartId={selectedChartId}
+                snapshotVersion={snapshotVersion}
                 onAddComment={handleAddComment}
                 onAddReply={handleAddReply}
                 onLike={handleToggleLike}

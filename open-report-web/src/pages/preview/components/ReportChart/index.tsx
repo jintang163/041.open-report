@@ -1,9 +1,11 @@
-import React, { useEffect, useRef, useMemo, useState } from 'react'
+import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { Card, Empty, Spin, Row, Col } from 'antd'
 import { usePreviewStore } from '../../store/preview'
+import { useCommentStore } from '../../store/comment'
 import { ChartConfig, buildChartOption } from '../../utils/report'
 import { getDatasetPreview } from '@/api/dataset'
+import CommentBubble from '../CommentBubble'
 
 interface ReportChartProps {
   charts?: ChartConfig[]
@@ -14,9 +16,12 @@ const SingleChart: React.FC<{
   chart: ChartConfig
   data: Record<string, any>[]
   height?: number | string
+  commentCount: number
+  isActive: boolean
   linkageFilter?: { field: string; value: any }
   onChartClick?: (params: any) => void
-}> = ({ chart, data, height = 300, linkageFilter, onChartClick }) => {
+  onChartSelect?: (chartId: string) => void
+}> = ({ chart, data, height = 300, commentCount, isActive, linkageFilter, onChartClick, onChartSelect }) => {
   const chartRef = useRef<ReactECharts>(null)
 
   const option = useMemo(() => {
@@ -37,6 +42,13 @@ const SingleChart: React.FC<{
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  const handleClick = useCallback((params: any) => {
+    if (onChartSelect) {
+      onChartSelect(String(chart.id))
+    }
+    onChartClick?.(params)
+  }, [chart.id, onChartSelect, onChartClick])
+
   if (!option) {
     return (
       <div style={{
@@ -51,15 +63,29 @@ const SingleChart: React.FC<{
   }
 
   return (
-    <ReactECharts
-      ref={chartRef}
-      option={option}
-      style={{ height: chart.height || height, width: chart.width || '100%' }}
-      notMerge
-      lazyUpdate
-      opts={{ renderer: 'canvas' }}
-      onEvents={{ click: onChartClick }}
-    />
+    <div style={{ position: 'relative' }}>
+      <ReactECharts
+        ref={chartRef}
+        option={option}
+        style={{
+          height: chart.height || height,
+          width: chart.width || '100%',
+          cursor: 'pointer',
+          border: isActive ? '2px solid #1677ff' : '2px solid transparent',
+          borderRadius: 8,
+          transition: 'border 0.2s'
+        }}
+        notMerge
+        lazyUpdate
+        opts={{ renderer: 'canvas' }}
+        onEvents={{ click: handleClick }}
+      />
+      <CommentBubble
+        count={commentCount}
+        active={isActive}
+        onClick={() => onChartSelect?.(String(chart.id))}
+      />
+    </div>
   )
 }
 
@@ -69,6 +95,11 @@ const ReportChart: React.FC<ReportChartProps> = ({ charts, height = 300 }) => {
   const [chartDataMap, setChartDataMap] = useState<Record<number, Record<string, any>[]>>({})
   const [dataLoading, setDataLoading] = useState(false)
   const [linkageState, setLinkageState] = useState<Record<string, { field: string; value: any }>>({})
+
+  const getChartCommentCount = useCommentStore((state) => state.getChartCommentCount)
+  const selectedChartId = useCommentStore((state) => state.selectedChartId)
+  const setSelectedChartId = useCommentStore((state) => state.setSelectedChartId)
+  const setSelectedCellRef = useCommentStore((state) => state.setSelectedCellRef)
 
   const chartList = useMemo(() => {
     if (charts && charts.length > 0) return charts
@@ -104,6 +135,11 @@ const ReportChart: React.FC<ReportChartProps> = ({ charts, height = 300 }) => {
       loadData()
     }
   }, [chartList])
+
+  const handleChartSelect = useCallback((chartId: string) => {
+    setSelectedCellRef(null)
+    setSelectedChartId(chartId)
+  }, [setSelectedCellRef, setSelectedChartId])
 
   const handleChartClick = (chart: ChartConfig) => (params: any) => {
     if (!chart.linkageField || !chart.linkageTargetId) return
@@ -147,18 +183,29 @@ const ReportChart: React.FC<ReportChartProps> = ({ charts, height = 300 }) => {
           >
             <Card
               title={chart.title}
-              style={{ borderRadius: 8, height: '100%' }}
+              style={{
+                borderRadius: 8,
+                height: '100%',
+                border: selectedChartId === String(chart.id) ? '2px solid #1677ff' : '1px solid #f0f0f0'
+              }}
               bodyStyle={{ padding: 12 }}
-              extra={chart.linkageField && (
-                <span style={{ fontSize: 11, color: '#999' }}>支持联动</span>
-              )}
+              extra={
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {chart.linkageField && (
+                    <span style={{ fontSize: 11, color: '#999' }}>支持联动</span>
+                  )}
+                </div>
+              }
             >
               <SingleChart
                 chart={chart}
                 data={chart.datasetId ? (chartDataMap[chart.datasetId] || []) : (chart.data || [])}
                 height={height}
+                commentCount={getChartCommentCount(String(chart.id))}
+                isActive={selectedChartId === String(chart.id)}
                 linkageFilter={linkageState[chart.id]}
                 onChartClick={handleChartClick(chart)}
+                onChartSelect={handleChartSelect}
               />
             </Card>
           </Col>

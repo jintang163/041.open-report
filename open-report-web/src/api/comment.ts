@@ -32,6 +32,20 @@ export const getChartIdsWithComments = (templateId: number): Promise<string[]> =
   return get(`/report-comment/template/${templateId}/chart-ids`)
 }
 
+export const getCellRefsWithCommentsByVersion = (
+  templateId: number,
+  snapshotVersion: number
+): Promise<string[]> => {
+  return get(`/report-comment/template/${templateId}/version/${snapshotVersion}/cell-refs`)
+}
+
+export const getChartIdsWithCommentsByVersion = (
+  templateId: number,
+  snapshotVersion: number
+): Promise<string[]> => {
+  return get(`/report-comment/template/${templateId}/version/${snapshotVersion}/chart-ids`)
+}
+
 export const getCommentCount = (templateId: number): Promise<number> => {
   return get(`/report-comment/template/${templateId}/count`)
 }

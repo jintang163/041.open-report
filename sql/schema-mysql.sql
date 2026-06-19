@@ -316,4 +316,52 @@ CREATE TABLE `data_lineage` (
   KEY `idx_report_field` (`report_id`, `report_field`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='数据血缘关系表';
 
+-- ----------------------------
+-- 报表评论表
+-- ----------------------------
+DROP TABLE IF EXISTS `report_comment`;
+CREATE TABLE `report_comment` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `template_id` bigint NOT NULL COMMENT '报表模板ID',
+  `template_name` varchar(200) DEFAULT NULL COMMENT '报表模板名称',
+  `snapshot_version` int DEFAULT NULL COMMENT '报表快照版本号',
+  `cell_ref` varchar(100) DEFAULT NULL COMMENT '单元格引用（如A1、B3）',
+  `chart_id` varchar(100) DEFAULT NULL COMMENT '图表ID',
+  `content` text NOT NULL COMMENT '评论内容',
+  `parent_id` bigint DEFAULT NULL COMMENT '父评论ID（为空表示顶级评论）',
+  `reply_to_user_id` bigint DEFAULT NULL COMMENT '回复目标用户ID',
+  `reply_to_user_name` varchar(100) DEFAULT NULL COMMENT '回复目标用户名',
+  `mention_user_ids` varchar(500) DEFAULT NULL COMMENT '@提及用户ID列表（逗号分隔）',
+  `like_count` int DEFAULT 0 COMMENT '点赞数',
+  `reply_count` int DEFAULT 0 COMMENT '回复数',
+  `create_by` bigint DEFAULT NULL COMMENT '评论者ID',
+  `create_by_name` varchar(100) DEFAULT NULL COMMENT '评论者名称',
+  `create_by_avatar` varchar(500) DEFAULT NULL COMMENT '评论者头像',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` tinyint DEFAULT 0 COMMENT '逻辑删除: 1-删除 0-未删除',
+  PRIMARY KEY (`id`),
+  KEY `idx_template_id` (`template_id`),
+  KEY `idx_template_version` (`template_id`, `snapshot_version`),
+  KEY `idx_cell_ref` (`template_id`, `cell_ref`),
+  KEY `idx_chart_id` (`template_id`, `chart_id`),
+  KEY `idx_parent_id` (`parent_id`),
+  KEY `idx_create_by` (`create_by`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='报表评论表';
+
+-- ----------------------------
+-- 评论点赞表
+-- ----------------------------
+DROP TABLE IF EXISTS `report_comment_like`;
+CREATE TABLE `report_comment_like` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `comment_id` bigint NOT NULL COMMENT '评论ID',
+  `user_id` bigint NOT NULL COMMENT '点赞用户ID',
+  `user_name` varchar(100) DEFAULT NULL COMMENT '点赞用户名',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_comment_user` (`comment_id`, `user_id`),
+  KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='评论点赞表';
+
 SET FOREIGN_KEY_CHECKS = 1;

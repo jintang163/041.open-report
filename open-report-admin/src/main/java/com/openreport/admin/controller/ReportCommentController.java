@@ -67,6 +67,24 @@ public class ReportCommentController {
         return Result.success(commentService.getChartIdsWithComments(templateId));
     }
 
+    @ApiOperation("按版本获取有评论的单元格引用列表")
+    @GetMapping("/template/{templateId}/version/{snapshotVersion}/cell-refs")
+    @RequirePerms("report:comment:list")
+    public Result<List<String>> getCellRefsWithCommentsByVersion(
+            @PathVariable Long templateId,
+            @PathVariable Integer snapshotVersion) {
+        return Result.success(commentService.getCellRefsWithCommentsByVersion(templateId, snapshotVersion));
+    }
+
+    @ApiOperation("按版本获取有评论的图表ID列表")
+    @GetMapping("/template/{templateId}/version/{snapshotVersion}/chart-ids")
+    @RequirePerms("report:comment:list")
+    public Result<List<String>> getChartIdsWithCommentsByVersion(
+            @PathVariable Long templateId,
+            @PathVariable Integer snapshotVersion) {
+        return Result.success(commentService.getChartIdsWithCommentsByVersion(templateId, snapshotVersion));
+    }
+
     @ApiOperation("获取评论数量")
     @GetMapping("/template/{templateId}/count")
     @RequirePerms("report:comment:list")

@@ -8,6 +8,8 @@ import com.openreport.admin.mapper.ReportCommentLikeMapper;
 import com.openreport.admin.mapper.ReportCommentMapper;
 import com.openreport.admin.mapper.SysUserMapper;
 import com.openreport.admin.service.ReportCommentService;
+import com.openreport.admin.service.EmailService;
+import com.openreport.admin.service.DingTalkService;
 import com.openreport.admin.websocket.WebSocketPushService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +37,12 @@ public class ReportCommentServiceImpl extends ServiceImpl<ReportCommentMapper, R
 
     @Autowired
     private WebSocketPushService pushService;
+
+    @Autowired
+    private EmailService emailService;
+
+    @Autowired
+    private DingTalkService dingTalkService;
 
     @Override
     public List<ReportComment> listByTemplateId(Long templateId, Long currentUserId) {
@@ -76,6 +84,16 @@ public class ReportCommentServiceImpl extends ServiceImpl<ReportCommentMapper, R
     @Override
     public List<String> getChartIdsWithComments(Long templateId) {
         return baseMapper.getChartIdsWithComments(templateId);
+    }
+
+    @Override
+    public List<String> getCellRefsWithCommentsByVersion(Long templateId, Integer snapshotVersion) {
+        return baseMapper.getCellRefsWithCommentsByVersion(templateId, snapshotVersion);
+    }
+
+    @Override
+    public List<String> getChartIdsWithCommentsByVersion(Long templateId, Integer snapshotVersion) {
+        return baseMapper.getChartIdsWithCommentsByVersion(templateId, snapshotVersion);
     }
 
     @Override
@@ -240,13 +258,26 @@ public class ReportCommentServiceImpl extends ServiceImpl<ReportCommentMapper, R
 
             if (mentionUser.getEmail() != null && !mentionUser.getEmail().isEmpty()) {
                 try {
-                    pushService.sendEmailNotification(
+                    emailService.sendEmail(
                             mentionUser.getEmail(),
                             String.format("【报表评论】%s 在报表中@了您", comment.getCreateByName()),
                             buildMentionEmailContent(comment, mentionUser.getNickname())
                     );
                 } catch (Exception e) {
                     log.error("发送评论@提及邮件失败: email={}", mentionUser.getEmail(), e);
+                }
+            }
+
+            if (mentionUser.getPhone() != null && !mentionUser.getPhone().isEmpty()) {
+                try {
+                    dingTalkService.sendMarkdownToUser(
+                            mentionUser.getPhone(),
+                            String.format("【报表评论】%s 在报表中@了您", comment.getCreateByName()),
+                            buildMentionDingTalkContent(comment, mentionUser.getNickname()),
+                            null
+                    );
+                } catch (Exception e) {
+                    log.error("发送评论@提及钉钉通知失败: phone={}", mentionUser.getPhone(), e);
                 }
             }
         }
@@ -299,5 +330,19 @@ public class ReportCommentServiceImpl extends ServiceImpl<ReportCommentMapper, R
                 comment.getTemplateName() != null ? comment.getTemplateName() : "报表",
                 comment.getContent()
         );
+    }
+
+    private String buildMentionDingTalkContent(ReportComment comment, String mentionUserName) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("### 报表评论@通知\n\n");
+        sb.append(String.format("**%s**，您好！\n\n", mentionUserName));
+        sb.append(String.format("**%s** 在报表 **%s** 中@了您：\n\n",
+                comment.getCreateByName(),
+                comment.getTemplateName() != null ? comment.getTemplateName() : "报表"));
+        sb.append("> ");
+        String content = comment.getContent().replaceAll("@\\[([^\\]]+)\\]\\(\\d+\\)", "@$1");
+        sb.append(content).append("\n\n");
+        sb.append("请及时查看并回复。\n");
+        return sb.toString();
     }
 }
