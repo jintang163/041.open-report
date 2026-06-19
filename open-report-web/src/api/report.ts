@@ -1,5 +1,86 @@
 import { get, post, put, del } from '@/utils/request'
-import { ReportTemplate, PageParams, PageResult, ReportTemplateSnapshot, ReportApproval, TemplateVersionDiffDTO } from '@/types'
+import { ReportTemplate, PageParams, PageResult, ReportTemplateSnapshot, ReportApproval, TemplateVersionDiffDTO, ReportSnapshotConfig, ReportDataSnapshot, SnapshotComparisonResult } from '@/types'
+
+export const executeReportWithSnapshot = (
+  id: number,
+  params?: Record<string, any>,
+  snapshotMode?: 'realtime' | 'latest' | 'snapshot',
+  snapshotId?: number
+): Promise<{
+  html?: string
+  data?: any
+  charts?: any[]
+  isSnapshot?: boolean
+  snapshotId?: number
+  snapshotName?: string
+  snapshotTime?: string
+}> => {
+  const queryParams: Record<string, any> = {}
+  if (snapshotMode) queryParams.snapshotMode = snapshotMode
+  if (snapshotId) queryParams.snapshotId = snapshotId
+  return post(`/report/execute/${id}`, params, { params: queryParams })
+}
+
+export const getSnapshotConfigByReportId = (reportId: number): Promise<ReportSnapshotConfig> => {
+  return get(`/report-snapshot/config/report/${reportId}`)
+}
+
+export const createSnapshotConfig = (data: Partial<ReportSnapshotConfig>): Promise<ReportSnapshotConfig> => {
+  return post('/report-snapshot/config', data)
+}
+
+export const updateSnapshotConfig = (data: Partial<ReportSnapshotConfig>): Promise<ReportSnapshotConfig> => {
+  return put('/report-snapshot/config', data)
+}
+
+export const deleteSnapshotConfig = (id: number): Promise<void> => {
+  return del(`/report-snapshot/config/${id}`)
+}
+
+export const toggleSnapshotConfig = (id: number, enabled: number): Promise<boolean> => {
+  return put(`/report-snapshot/config/${id}/toggle`, undefined, { params: { enabled } })
+}
+
+export const createSnapshotManual = (configId: number, params?: Record<string, any>): Promise<{
+  success: boolean
+  snapshotId?: number
+  snapshotName?: string
+  rowCount?: number
+  dataSize?: number
+  executeTime?: number
+}> => {
+  return post(`/report-snapshot/create/${configId}`, params)
+}
+
+export const getSnapshotListByReportId = (reportId: number, limit = 50): Promise<ReportDataSnapshot[]> => {
+  return get(`/report-snapshot/data/list/${reportId}`, { limit })
+}
+
+export const getLatestSnapshot = (reportId: number): Promise<ReportDataSnapshot> => {
+  return get(`/report-snapshot/data/latest/${reportId}`)
+}
+
+export const loadSnapshotData = (snapshotId: number): Promise<Record<string, any>> => {
+  return get(`/report-snapshot/data/${snapshotId}`)
+}
+
+export const deleteSnapshot = (snapshotId: number): Promise<boolean> => {
+  return del(`/report-snapshot/data/${snapshotId}`)
+}
+
+export const compareSnapshots = (
+  baseSnapshotId: number,
+  targetSnapshotId: number
+): Promise<SnapshotComparisonResult> => {
+  return get('/report-snapshot/compare', { baseSnapshotId, targetSnapshotId })
+}
+
+export const compareSnapshotWithRealtime = (
+  snapshotId: number,
+  params?: Record<string, any>
+): Promise<SnapshotComparisonResult> => {
+  return post(`/report-snapshot/compare-realtime/${snapshotId}`, params)
+}
 
 export const getReportList = (params: PageParams): Promise<PageResult<ReportTemplate>> => {
   return get('/report-template/page', params)

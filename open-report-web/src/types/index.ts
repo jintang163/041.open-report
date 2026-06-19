@@ -595,6 +595,113 @@ export interface ReportFunctionVersion {
   createTime?: string
 }
 
+export interface ReportSnapshotConfig {
+  id?: number
+  reportId: number
+  reportName?: string
+  enabled?: number
+  cronExpression: string
+  retentionDays?: number
+  snapshotType?: string
+  storageType?: string
+  paramsJson?: string
+  description?: string
+  lastSnapshotTime?: string
+  lastSnapshotId?: number
+  snapshotCount?: number
+  maxSnapshots?: number
+  status?: number
+  createBy?: number
+  createByName?: string
+  createTime?: string
+  updateTime?: string
+}
+
+export interface ReportDataSnapshot {
+  id?: number
+  reportId?: number
+  reportName?: string
+  configId?: number
+  snapshotName?: string
+  snapshotType?: string
+  storageType?: string
+  dataVersion?: string
+  paramsJson?: string
+  dataJson?: string
+  dataSize?: number
+  rowCount?: number
+  tableCount?: number
+  executeTime?: number
+  dataHash?: string
+  expireTime?: string
+  status?: number
+  errorMsg?: string
+  createBy?: number
+  createByName?: string
+  createTime?: string
+}
+
+export interface SnapshotComparisonResult {
+  success: boolean
+  message?: string
+  baseSnapshot?: {
+    id: number
+    name: string
+    dataVersion: string
+    createTime: string
+    rowCount: number
+    dataSize: number
+    tableCount: number
+    dataHash: string
+  }
+  targetSnapshot?: {
+    id: number
+    name: string
+    dataVersion: string
+    createTime: string
+    rowCount: number
+    dataSize: number
+    tableCount: number
+    dataHash: string
+  }
+  realtimeInfo?: {
+    name: string
+    time: string
+  }
+  tablesComparison?: Array<{
+    bindName: string
+    baseRows: number
+    targetRows: number
+    rowDiff: number
+    rowDiffPercent: string
+    baseCols: number
+    targetCols: number
+    colDiff: number
+    xField: string
+    yField: string
+    chartData: Array<{
+      x: string
+      category: string
+      value: number
+    }>
+  }>
+  summary?: {
+    baseRowCount?: number
+    targetRowCount?: number
+    snapshotRowCount?: number
+    realtimeRowCount?: number
+    totalRowDiff?: number
+    rowDiff?: number
+    rowDiffPercent?: string
+    dataHashChanged?: boolean
+    baseDataSize?: number
+    targetDataSize?: number
+    sizeDiff?: number
+    hoursDiff?: number
+  }
+  realtimeData?: any
+}
+
 export interface FunctionDoc {
   id?: number
   name: string

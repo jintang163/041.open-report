@@ -11,13 +11,23 @@ import {
   Alert,
   Tag,
   Switch,
-  message
+  message,
+  Tooltip,
+  Segmented,
+  Dropdown,
+  Badge
 } from 'antd'
 import {
   ArrowLeftOutlined,
   EditOutlined,
   HistoryOutlined,
-  SyncOutlined
+  SyncOutlined,
+  DatabaseOutlined,
+  CloudServerOutlined,
+  SettingOutlined,
+  BarChartOutlined,
+  ClockCircleOutlined,
+  DownOutlined
 } from '@ant-design/icons'
 import ParamPanel from './components/ParamPanel'
 import ReportTable from './components/ReportTable'
@@ -26,12 +36,16 @@ import ReportToolbar from './components/ReportToolbar'
 import MobileReportView from './components/MobileReportView'
 import EditableTable from './components/EditableTable'
 import WritebackHistoryModal from './components/WritebackHistoryModal'
-import { usePreviewStore } from './store/preview'
+import SnapshotConfigModal from './components/SnapshotConfigModal'
+import SnapshotHistoryPanel from './components/SnapshotHistoryPanel'
+import SnapshotCompareModal from './components/SnapshotCompareModal'
+import { usePreviewStore, SnapshotMode } from './store/preview'
 import { useWritebackStore } from './store/writeback'
-import { getReportById } from '@/api/report'
-import { ReportTemplate } from '@/types'
+import { getReportById, compareSnapshotWithRealtime } from '@/api/report'
+import { ReportTemplate, SnapshotComparisonResult } from '@/types'
 import { isMobileDevice } from './utils/report'
 import { useReportWebSocket } from '@/hooks/useWebSocket'
+import dayjs from 'dayjs'
 
 const { Title } = Typography
 
@@ -46,10 +60,18 @@ const PreviewPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('view')
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true)
 
+  const [snapshotConfigVisible, setSnapshotConfigVisible] = useState(false)
+  const [snapshotHistoryVisible, setSnapshotHistoryVisible] = useState(false)
+  const [compareModalVisible, setCompareModalVisible] = useState(false)
+  const [compareLoading, setCompareLoading] = useState(false)
+  const [compareResult, setCompareResult] = useState<SnapshotComparisonResult | null>(null)
+  const [compareMode, setCompareMode] = useState<'snapshot-snapshot' | 'snapshot-realtime'>('snapshot-realtime')
+
   const setReportId = usePreviewStore((state) => state.setReportId)
   const setReportName = usePreviewStore((state) => state.setReportName)
   const loadParams = usePreviewStore((state) => state.loadParams)
   const executeReport = usePreviewStore((state) => state.executeReport)
+  const executeReportWithSnapshotMode = usePreviewStore((state) => state.executeReportWithSnapshotMode)
   const reportData = usePreviewStore((state) => state.reportData)
   const isFullscreen = usePreviewStore((state) => state.isFullscreen)
   const isMobile = usePreviewStore((state) => state.isMobile)
@@ -58,6 +80,16 @@ const PreviewPage: React.FC = () => {
   const exportExcel = usePreviewStore((state) => state.exportExcel)
   const exportPdf = usePreviewStore((state) => state.exportPdf)
   const reportName = usePreviewStore((state) => state.reportName)
+  const snapshotMode = usePreviewStore((state) => state.snapshotMode)
+  const setSnapshotMode = usePreviewStore((state) => state.setSnapshotMode)
+  const selectedSnapshotId = usePreviewStore((state) => state.selectedSnapshotId)
+  const setSelectedSnapshotId = usePreviewStore((state) => state.setSelectedSnapshotId)
+  const snapshotInfo = usePreviewStore((state) => state.snapshotInfo)
+  const snapshotConfig = usePreviewStore((state) => state.snapshotConfig)
+  const loadSnapshotConfig = usePreviewStore((state) => state.loadSnapshotConfig)
+  const snapshotList = usePreviewStore((state) => state.snapshotList)
+  const loadSnapshotList = usePreviewStore((state) => state.loadSnapshotList)
+  const snapshotLoading = usePreviewStore((state) => state.snapshotLoading)
 
   const {
     writebackConfigs,
@@ -88,12 +120,70 @@ const PreviewPage: React.FC = () => {
   const handleManualRefresh = async () => {
     message.loading({ content: '正在刷新数据...', key: 'refresh', duration: 0 })
     try {
-      await executeReport()
+      if (snapshotMode === 'realtime') {
+        await executeReport()
+      } else {
+        await executeReportWithSnapshotMode()
+      }
       acknowledgeRefresh()
       message.success({ content: '刷新成功', key: 'refresh' })
     } catch {
       message.error({ content: '刷新失败', key: 'refresh' })
     }
+  }
+
+  const handleSnapshotModeChange = async (mode: SnapshotMode) => {
+    setSnapshotMode(mode)
+    if (mode === 'snapshot' && !selectedSnapshotId) {
+      message.info('请从快照历史中选择一个快照')
+      setSnapshotHistoryVisible(true)
+      return
+    }
+    message.loading({ content: '正在加载数据...', key: 'snapshot-load', duration: 0 })
+    try {
+      await executeReportWithSnapshotMode()
+      message.success({ content: mode === 'realtime' ? '已切换到实时数据' : (mode === 'latest' ? '已加载最新快照' : '已加载快照数据'), key: 'snapshot-load' })
+    } catch (err: any) {
+      message.error({ content: err?.message || '加载失败', key: 'snapshot-load' })
+    }
+  }
+
+  const handleSelectSnapshot = async (snapshotId: number) => {
+    setSelectedSnapshotId(snapshotId)
+    setSnapshotMode('snapshot')
+    setSnapshotHistoryVisible(false)
+    message.loading({ content: '正在加载快照数据...', key: 'snapshot-load', duration: 0 })
+    try {
+      await executeReportWithSnapshotMode()
+      message.success({ content: '快照数据加载成功', key: 'snapshot-load' })
+    } catch (err: any) {
+      message.error({ content: err?.message || '加载失败', key: 'snapshot-load' })
+    }
+  }
+
+  const handleCompareWithRealtime = async (snapshotId: number) => {
+    setCompareMode('snapshot-realtime')
+    setCompareModalVisible(true)
+    setCompareLoading(true)
+    setCompareResult(null)
+    try {
+      const result = await compareSnapshotWithRealtime(snapshotId)
+      setCompareResult(result)
+    } catch (err: any) {
+      setCompareResult({ success: false, message: err?.message || '对比失败' })
+    } finally {
+      setCompareLoading(false)
+    }
+  }
+
+  const handleSnapshotConfigSuccess = async () => {
+    await loadSnapshotConfig()
+    await loadSnapshotList()
+  }
+
+  const handleRefreshSnapshotList = async () => {
+    await loadSnapshotList()
+    await loadSnapshotConfig()
   }
 
   useEffect(() => {
@@ -123,9 +213,13 @@ const PreviewPage: React.FC = () => {
         setReportInfo(report)
         setReportName(report.name || '')
 
-        await loadParams()
-        await executeReport()
-        await loadWritebackConfigs(reportId)
+        await Promise.all([
+          loadParams(),
+          executeReport(),
+          loadWritebackConfigs(reportId),
+          loadSnapshotConfig(),
+          loadSnapshotList()
+        ])
       } catch (err: any) {
         console.error('加载报表失败:', err)
         setError(err.message || '加载报表失败')
@@ -140,7 +234,7 @@ const PreviewPage: React.FC = () => {
       reset()
       resetWriteback()
     }
-  }, [id, setReportId, setReportName, loadParams, executeReport, reset, loadWritebackConfigs, resetWriteback])
+  }, [id, setReportId, setReportName, loadParams, executeReport, reset, loadWritebackConfigs, resetWriteback, loadSnapshotConfig, loadSnapshotList])
 
   const handleMobileExport = useCallback(async (type: 'excel' | 'pdf' | 'html') => {
     if (type === 'excel') {
@@ -211,22 +305,28 @@ const PreviewPage: React.FC = () => {
     )
   }
 
+  const snapshotModeOptions = [
+    { label: <span><CloudServerOutlined /> 实时模式</span>, value: 'realtime' },
+    { label: <span><ClockCircleOutlined /> 最新快照</span>, value: 'latest' },
+    { label: <span><DatabaseOutlined /> 指定快照</span>, value: 'snapshot' }
+  ]
+
   return (
     <div style={pageStyle}>
       <div style={{ maxWidth: isFullscreen ? '100%' : 1600, margin: '0 auto' }}>
         {!isFullscreen && (
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
             <Button
               icon={<ArrowLeftOutlined />}
               onClick={() => navigate(-1)}
-              style={{ marginRight: 16 }}
+              style={{ marginRight: 8 }}
             >
               返回
             </Button>
-            <Title level={4} style={{ margin: 0, flex: 1 }}>
+            <Title level={4} style={{ margin: 0, flex: 1, minWidth: 200 }}>
               {reportInfo?.name || '报表预览'}
             </Title>
-            <Space>
+            <Space wrap size="small">
               <Tag color={isConnected ? 'green' : 'default'}>
                 {isConnected ? '● 实时连接' : '○ 离线'}
               </Tag>
@@ -237,6 +337,56 @@ const PreviewPage: React.FC = () => {
                 checkedChildren="自动刷新"
                 unCheckedChildren="自动刷新"
               />
+              <Badge count={snapshotList.length} size="small" offset={[-4, 4]}>
+                <Dropdown
+                  menu={{
+                    selectedKeys: [snapshotMode],
+                    onClick: ({ key }) => handleSnapshotModeChange(key as SnapshotMode),
+                    items: snapshotModeOptions.map(opt => ({
+                      key: opt.value,
+                      label: opt.label
+                    }))
+                  }}
+                  trigger={['click']}
+                  placement="bottomRight"
+                >
+                  <Button>
+                    <Space>
+                      {snapshotMode === 'realtime' && <><CloudServerOutlined /> 实时模式</>}
+                      {snapshotMode === 'latest' && <><ClockCircleOutlined /> 最新快照</>}
+                      {snapshotMode === 'snapshot' && <><DatabaseOutlined /> 指定快照</>}
+                      <DownOutlined />
+                    </Space>
+                  </Button>
+                </Dropdown>
+              </Badge>
+              <Tooltip title="快照历史记录">
+                <Button
+                  icon={<HistoryOutlined />}
+                  onClick={() => setSnapshotHistoryVisible(true)}
+                >
+                  历史快照
+                </Button>
+              </Tooltip>
+              <Tooltip title="快照配置管理">
+                <Button
+                  icon={<SettingOutlined />}
+                  type={snapshotConfig?.enabled === 1 ? 'primary' : 'default'}
+                  onClick={() => setSnapshotConfigVisible(true)}
+                >
+                  快照配置
+                </Button>
+              </Tooltip>
+              {snapshotInfo?.snapshotId && (
+                <Tooltip title="与实时数据对比">
+                  <Button
+                    icon={<BarChartOutlined />}
+                    onClick={() => handleCompareWithRealtime(snapshotInfo.snapshotId!)}
+                  >
+                    数据对比
+                  </Button>
+                </Tooltip>
+              )}
               <Button
                 icon={<SyncOutlined spin={shouldRefresh} />}
                 onClick={handleManualRefresh}
@@ -282,6 +432,37 @@ const PreviewPage: React.FC = () => {
               )}
             </Space>
           </div>
+        )}
+
+        {snapshotInfo?.isSnapshot && (
+          <Alert
+            type="info"
+            showIcon
+            icon={<DatabaseOutlined />}
+            style={{ marginBottom: 16 }}
+            message={
+              <Space>
+                <strong>快照模式</strong>
+                <Tag color="cyan">{snapshotInfo.snapshotName}</Tag>
+                <span>版本: {snapshotInfo.dataVersion}</span>
+                <span>
+                  生成时间: {snapshotInfo.snapshotTime ? dayjs(snapshotInfo.snapshotTime).format('YYYY-MM-DD HH:mm:ss') : '-'}
+                </span>
+                {snapshotInfo.expireTime && (
+                  <Tag color="orange">
+                    有效期至: {dayjs(snapshotInfo.expireTime).format('YYYY-MM-DD HH:mm')}
+                  </Tag>
+                )}
+              </Space>
+            }
+            action={
+              snapshotMode !== 'realtime' && (
+                <Button size="small" onClick={() => handleSnapshotModeChange('realtime')}>
+                  切换到实时数据
+                </Button>
+              )
+            }
+          />
         )}
 
         {shouldRefresh && !autoRefresh && (
@@ -380,6 +561,44 @@ const PreviewPage: React.FC = () => {
             onClose={() => setHistoryVisible(false)}
           />
         )}
+
+        {snapshotConfigVisible && (
+          <SnapshotConfigModal
+            visible={snapshotConfigVisible}
+            reportId={Number(id)}
+            reportName={reportName || reportInfo?.name || ''}
+            existingConfig={snapshotConfig}
+            onClose={() => setSnapshotConfigVisible(false)}
+            onSuccess={handleSnapshotConfigSuccess}
+          />
+        )}
+
+        <SnapshotHistoryPanel
+          visible={snapshotHistoryVisible}
+          snapshotList={snapshotList}
+          loading={snapshotLoading}
+          selectedSnapshotId={selectedSnapshotId}
+          onClose={() => setSnapshotHistoryVisible(false)}
+          onSelectSnapshot={handleSelectSnapshot}
+          onCompare={handleCompareWithRealtime}
+          onRefresh={handleRefreshSnapshotList}
+        />
+
+        <SnapshotCompareModal
+          visible={compareModalVisible}
+          loading={compareLoading}
+          result={compareResult}
+          mode={compareMode}
+          onClose={() => {
+            setCompareModalVisible(false)
+            setCompareResult(null)
+          }}
+          onRefresh={() => {
+            if (selectedSnapshotId && compareMode === 'snapshot-realtime') {
+              handleCompareWithRealtime(selectedSnapshotId)
+            }
+          }}
+        />
       </div>
     </div>
   )

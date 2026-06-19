@@ -1,11 +1,14 @@
 import { create } from 'zustand'
 import { ReportParam, ReportRenderResult, initParamValues, formatParamValue } from '../utils/report'
-import { getReportParameters, executeReport, exportReportExcel, exportReportPdf, getReportDataPage } from '@/api/report'
+import { getReportParameters, executeReport, exportReportExcel, exportReportPdf, getReportDataPage, executeReportWithSnapshot, getSnapshotConfigByReportId, getSnapshotListByReportId } from '@/api/report'
 import { downloadBlob } from '../utils/report'
 import dayjs from 'dayjs'
+import type { ReportSnapshotConfig, ReportDataSnapshot } from '@/types'
 
 const BIG_DATA_THRESHOLD = 100_000
 const DEFAULT_PAGE_SIZE = 200
+
+export type SnapshotMode = 'realtime' | 'latest' | 'snapshot'
 
 interface PreviewState {
   reportId: number | null
@@ -30,6 +33,20 @@ interface PreviewState {
   dataSetId?: string
   bigDataThreshold: number
 
+  snapshotMode: SnapshotMode
+  selectedSnapshotId: number | null
+  snapshotInfo: {
+    snapshotId?: number
+    snapshotName?: string
+    snapshotTime?: string
+    dataVersion?: string
+    expireTime?: string
+    isSnapshot?: boolean
+  } | null
+  snapshotConfig: ReportSnapshotConfig | null
+  snapshotList: ReportDataSnapshot[]
+  snapshotLoading: boolean
+
   setReportId: (id: number) => void
   setReportName: (name: string) => void
   setParams: (params: ReportParam[]) => void
@@ -49,6 +66,13 @@ interface PreviewState {
   exportExcel: () => Promise<void>
   exportPdf: () => Promise<void>
   reset: () => void
+
+  setSnapshotMode: (mode: SnapshotMode) => void
+  setSelectedSnapshotId: (id: number | null) => void
+  loadSnapshotConfig: () => Promise<void>
+  loadSnapshotList: () => Promise<void>
+  executeReportWithSnapshotMode: () => Promise<void>
+  resetSnapshotState: () => void
 }
 
 export const usePreviewStore = create<PreviewState>((set, get) => ({
@@ -72,6 +96,13 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   hasMore: false,
   pageLoading: false,
   bigDataThreshold: BIG_DATA_THRESHOLD,
+
+  snapshotMode: 'realtime',
+  selectedSnapshotId: null,
+  snapshotInfo: null,
+  snapshotConfig: null,
+  snapshotList: [],
+  snapshotLoading: false,
 
   setReportId: (id: number) => set({ reportId: id }),
 
@@ -131,15 +162,78 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     })
   },
 
-  executeReport: async () => {
-    const { reportId, params, paramValues } = get()
+  setSnapshotMode: (mode: SnapshotMode) => set({ snapshotMode: mode }),
+
+  setSelectedSnapshotId: (id: number | null) => set({ selectedSnapshotId: id }),
+
+  loadSnapshotConfig: async () => {
+    const { reportId } = get()
+    if (!reportId) return
+    try {
+      set({ snapshotLoading: true })
+      const config = await getSnapshotConfigByReportId(reportId)
+      set({ snapshotConfig: config || null })
+    } catch (error) {
+      console.error('加载快照配置失败:', error)
+    } finally {
+      set({ snapshotLoading: false })
+    }
+  },
+
+  loadSnapshotList: async () => {
+    const { reportId } = get()
+    if (!reportId) return
+    try {
+      set({ snapshotLoading: true })
+      const list = await getSnapshotListByReportId(reportId, 50)
+      set({ snapshotList: list || [] })
+    } catch (error) {
+      console.error('加载快照列表失败:', error)
+    } finally {
+      set({ snapshotLoading: false })
+    }
+  },
+
+  resetSnapshotState: () => {
+    set({
+      snapshotMode: 'realtime',
+      selectedSnapshotId: null,
+      snapshotInfo: null,
+      snapshotConfig: null,
+      snapshotList: [],
+      snapshotLoading: false
+    })
+  },
+
+  executeReportWithSnapshotMode: async () => {
+    const { reportId, params, paramValues, snapshotMode, selectedSnapshotId } = get()
     if (!reportId) return
 
     set({ loading: true, pageMode: false, pageData: [], pageColumns: [], pageNum: 0, hasMore: false })
     try {
       const formattedParams = formatParamValue(params, paramValues)
-      const result: any = await executeReport(reportId, formattedParams)
+      const result: any = await executeReportWithSnapshot(
+        reportId,
+        formattedParams,
+        snapshotMode,
+        snapshotMode === 'snapshot' ? selectedSnapshotId || undefined : undefined
+      )
       const renderResult = result as ReportRenderResult
+
+      if (result?.isSnapshot) {
+        set({
+          snapshotInfo: {
+            snapshotId: result.snapshotId,
+            snapshotName: result.snapshotName,
+            snapshotTime: result.snapshotTime,
+            dataVersion: result.dataVersion,
+            expireTime: result.expireTime,
+            isSnapshot: true
+          }
+        })
+      } else {
+        set({ snapshotInfo: null })
+      }
 
       const serverPageMode = Boolean(result?.pageMode)
       const serverThreshold = result?.bigDataThreshold ?? BIG_DATA_THRESHOLD
@@ -199,9 +293,14 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
     }
   },
 
+  executeReport: async () => {
+    await get().executeReportWithSnapshotMode()
+  },
+
   loadMoreData: async () => {
-    const { reportId, params, paramValues, pageMode, pageNum, pageSize, hasMore, pageLoading, pageData, dataSetId } = get()
+    const { reportId, params, paramValues, pageMode, pageNum, pageSize, hasMore, pageLoading, pageData, dataSetId, snapshotMode, selectedSnapshotId } = get()
     if (!reportId || !pageMode || !hasMore || pageLoading) return
+    if (snapshotMode !== 'realtime') return
 
     const nextPage = pageNum + 1
     set({ pageLoading: true })
@@ -285,5 +384,6 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       pageLoading: false,
       bigDataThreshold: BIG_DATA_THRESHOLD
     })
+    get().resetSnapshotState()
   }
 }))

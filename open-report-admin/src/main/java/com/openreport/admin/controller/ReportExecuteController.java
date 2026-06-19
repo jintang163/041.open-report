@@ -6,6 +6,7 @@ import com.openreport.admin.config.RequirePerms;
 import com.openreport.admin.entity.DataSet;
 import com.openreport.admin.entity.ReportTemplate;
 import com.openreport.admin.service.DataSetService;
+import com.openreport.admin.service.ReportDataSnapshotService;
 import com.openreport.admin.service.ReportTemplateService;
 import com.openreport.common.result.Result;
 import com.openreport.common.result.ResultCode;
@@ -30,15 +31,37 @@ public class ReportExecuteController {
     @Autowired
     private DataSetService dataSetService;
 
+    @Autowired
+    private ReportDataSnapshotService reportDataSnapshotService;
+
     @ApiOperation("执行报表（主入口，自动探测大数据量）")
     @PostMapping("/execute/{templateId}")
     @RequirePerms("report:manage:list")
     public Result<Map<String, Object>> executeReport(
             @PathVariable Long templateId,
-            @RequestBody(required = false) Map<String, Object> params) {
+            @RequestBody(required = false) Map<String, Object> params,
+            @RequestParam(required = false) String snapshotMode,
+            @RequestParam(required = false) Long snapshotId) {
         ReportTemplate template = reportTemplateService.getById(templateId);
         if (template == null) {
             return Result.failure(ResultCode.DATA_NOT_FOUND, "报表模板不存在");
+        }
+
+        if ("snapshot".equalsIgnoreCase(snapshotMode) && snapshotId != null) {
+            Map<String, Object> snapshotData = reportDataSnapshotService.loadSnapshotData(snapshotId);
+            if (Boolean.TRUE.equals(snapshotData.get("success"))) {
+                return Result.success(snapshotData);
+            }
+        }
+
+        if ("latest".equalsIgnoreCase(snapshotMode)) {
+            var latestSnapshot = reportDataSnapshotService.getLatestByReportId(templateId);
+            if (latestSnapshot != null) {
+                Map<String, Object> snapshotData = reportDataSnapshotService.loadSnapshotData(latestSnapshot.getId());
+                if (Boolean.TRUE.equals(snapshotData.get("success"))) {
+                    return Result.success(snapshotData);
+                }
+            }
         }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("templateId", templateId);
