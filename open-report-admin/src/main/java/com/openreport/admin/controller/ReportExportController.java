@@ -11,6 +11,7 @@ import com.openreport.common.enums.ReportStatusEnum;
 import com.openreport.common.result.Result;
 import com.openreport.common.result.ResultCode;
 import com.openreport.common.utils.JwtUtils;
+import com.openreport.common.utils.ServletUtils;
 import com.openreport.engine.export.ExcelExporter;
 import com.openreport.engine.export.PdfExporter;
 import io.swagger.annotations.Api;
@@ -97,7 +98,8 @@ public class ReportExportController {
         }
 
         Map<String, Object> exportData = collectExportData(template, extractParams(request));
-        byte[] bytes = buildPdfBytes(template, exportData, extractParams(request));
+        PdfExporter.WatermarkInfo watermarkInfo = buildWatermarkInfo(token, request);
+        byte[] bytes = buildPdfBytes(template, exportData, extractParams(request), watermarkInfo);
 
         String fileName = encodeFileName(template.getTemplateName() + ".pdf");
         return ResponseEntity.ok()
@@ -184,7 +186,8 @@ public class ReportExportController {
                         byte[] bytes = buildExcelBytes(template, exportData, batchRequest.getParams());
                         item.put("fileSize", bytes.length);
                     } else if ("pdf".equalsIgnoreCase(exportType)) {
-                        byte[] bytes = buildPdfBytes(template, exportData, batchRequest.getParams());
+                        PdfExporter.WatermarkInfo watermarkInfo = buildWatermarkInfo(null, request);
+                        byte[] bytes = buildPdfBytes(template, exportData, batchRequest.getParams(), watermarkInfo);
                         item.put("fileSize", bytes.length);
                     }
                 } catch (Exception e) {
@@ -376,7 +379,7 @@ public class ReportExportController {
     }
 
     private byte[] buildPdfBytes(ReportTemplate template, Map<String, Object> exportData,
-                                  Map<String, Object> params) {
+                                  Map<String, Object> params, PdfExporter.WatermarkInfo watermarkInfo) {
         Map<String, Object> dataSets = (Map<String, Object>) exportData.get("dataSets");
         if (dataSets != null && !dataSets.isEmpty()) {
             Map.Entry<String, Object> firstEntry = dataSets.entrySet().iterator().next();
@@ -408,17 +411,56 @@ public class ReportExportController {
                             }
                         }
                     });
-                    return pdfExporter.exportDataSet(template.getTemplateName() + "(前10000行)", limitedRows);
+                    return pdfExporter.exportDataSet(template.getTemplateName() + "(前10000行)", limitedRows, watermarkInfo);
                 }
 
                 Object rows = dataMap.get("rows");
                 if (rows instanceof List) {
                     List<Map<String, Object>> rowList = (List<Map<String, Object>>) rows;
-                    return pdfExporter.exportDataSet(template.getTemplateName(), rowList);
+                    return pdfExporter.exportDataSet(template.getTemplateName(), rowList, watermarkInfo);
                 }
             }
         }
-        return pdfExporter.exportDataSet(template.getTemplateName(), new ArrayList<>());
+        return pdfExporter.exportDataSet(template.getTemplateName(), new ArrayList<>(), watermarkInfo);
+    }
+
+    private PdfExporter.WatermarkInfo buildWatermarkInfo(String paramToken, HttpServletRequest request) {
+        PdfExporter.WatermarkInfo watermarkInfo = new PdfExporter.WatermarkInfo();
+
+        String token = resolveToken(paramToken, request);
+        String username = null;
+        if (StringUtils.isNotBlank(token) && jwtUtils.validateToken(token)) {
+            try {
+                io.jsonwebtoken.Claims claims = jwtUtils.parseToken(token);
+                Object usernameObj = claims.get("username");
+                if (usernameObj != null) {
+                    username = usernameObj.toString();
+                } else {
+                    Object sub = claims.getSubject();
+                    if (sub != null) {
+                        username = sub;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        if (StringUtils.isBlank(username)) {
+            Long userId = (Long) request.getAttribute("userId");
+            if (userId != null) {
+                username = "user_" + userId;
+            } else {
+                username = "匿名用户";
+            }
+        }
+        watermarkInfo.setUsername(username);
+
+        String ip = ServletUtils.getIpAddr();
+        if (ip == null && request != null) {
+            ip = request.getRemoteAddr();
+        }
+        watermarkInfo.setIp(ip != null ? ip : "0.0.0.0");
+
+        return watermarkInfo;
     }
 
     private String buildHtmlDocument(ReportTemplate template, Map<String, Object> dataSets) {

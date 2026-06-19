@@ -54,6 +54,8 @@ import { getReportById, compareSnapshotWithRealtime } from '@/api/report'
 import { ReportTemplate, SnapshotComparisonResult } from '@/types'
 import { isMobileDevice, formatParamValue } from './utils/report'
 import { useReportWebSocket } from '@/hooks/useWebSocket'
+import Watermark from '@/components/Watermark'
+import useAntiScreenCapture from '@/hooks/useAntiScreenCapture'
 import dayjs from 'dayjs'
 
 const { Title } = Typography
@@ -62,6 +64,16 @@ const { Sider, Content } = Layout
 type ViewMode = 'view' | 'edit'
 
 const PreviewPage: React.FC = () => {
+  useAntiScreenCapture({
+    disableContextMenu: true,
+    disableTextSelection: true,
+    disableCopy: true,
+    disablePrint: true,
+    disableScreenshotKeys: true,
+    enableScreenshotDetection: true,
+    enableBlurOnVisibilityChange: true
+  })
+
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [reportInfo, setReportInfo] = useState<ReportTemplate | null>(null)
@@ -461,6 +473,7 @@ const PreviewPage: React.FC = () => {
 
   return (
     <div style={pageStyle}>
+      <Watermark>
       <div style={{ maxWidth: isFullscreen ? '100%' : 1600, margin: '0 auto' }}>
         {!isFullscreen && (
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
@@ -864,6 +877,7 @@ const PreviewPage: React.FC = () => {
           onReportClick={handleReportClick}
         />
       </div>
+      </Watermark>
     </div>
   )
 }

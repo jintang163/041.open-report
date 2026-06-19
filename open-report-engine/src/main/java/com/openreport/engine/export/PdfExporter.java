@@ -2,19 +2,19 @@ package com.openreport.engine.export;
 
 import com.lowagie.text.*;
 import com.lowagie.text.Font;
-import com.lowagie.text.pdf.BaseFont;
-import com.lowagie.text.pdf.PdfPCell;
-import com.lowagie.text.pdf.PdfPTable;
-import com.lowagie.text.pdf.PdfWriter;
+import com.lowagie.text.pdf.*;
 import com.openreport.common.exception.BusinessException;
 import com.openreport.engine.model.ReportCell;
 import com.openreport.engine.model.RenderResult;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.awt.*;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -22,10 +22,147 @@ import java.util.Map;
 @Component
 public class PdfExporter {
 
+    @Data
+    public static class WatermarkInfo {
+        private String username;
+        private String timestamp;
+        private String ip;
+        private float opacity = 0.15f;
+        private int fontSize = 14;
+        private float rotate = -22f;
+        private int gapX = 180;
+        private int gapY = 100;
+        private String color = "#666666";
+
+        public WatermarkInfo() {
+            this.timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+        }
+
+        public WatermarkInfo(String username, String ip) {
+            this.username = username;
+            this.ip = ip;
+            this.timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+        }
+    }
+
+    private static class WatermarkPageEvent extends PdfPageEventHelper {
+        private final WatermarkInfo watermarkInfo;
+        private BaseFont baseFont;
+
+        public WatermarkPageEvent(WatermarkInfo watermarkInfo) {
+            this.watermarkInfo = watermarkInfo;
+            try {
+                this.baseFont = BaseFont.createFont("STSong-Light", "UniGB-UCS2-H", BaseFont.NOT_EMBEDDED);
+            } catch (Exception e) {
+                try {
+                    this.baseFont = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, BaseFont.NOT_EMBEDDED);
+                } catch (Exception ex) {
+                    this.baseFont = null;
+                }
+            }
+        }
+
+        @Override
+        public void onEndPage(PdfWriter writer, Document document) {
+            if (watermarkInfo == null || baseFont == null) {
+                return;
+            }
+
+            PdfContentByte contentByte = writer.getDirectContentUnder();
+
+            float pageWidth = document.getPageSize().getWidth();
+            float pageHeight = document.getPageSize().getHeight();
+            float marginLeft = document.leftMargin();
+            float marginRight = document.rightMargin();
+            float marginTop = document.topMargin();
+            float marginBottom = document.bottomMargin();
+
+            float contentWidth = pageWidth - marginLeft - marginRight;
+            float contentHeight = pageHeight - marginTop - marginBottom;
+
+            String line1 = watermarkInfo.getUsername() != null ? watermarkInfo.getUsername() : "匿名用户";
+            String line2 = watermarkInfo.getTimestamp() != null ? watermarkInfo.getTimestamp() : "";
+            String line3 = watermarkInfo.getIp() != null ? "IP: " + watermarkInfo.getIp() : "";
+
+            int fontSize = watermarkInfo.getFontSize();
+            float lineHeight = fontSize * 1.4f;
+            float blockWidth = Math.max(watermarkInfo.getGapX(), 200f);
+            float blockHeight = Math.max(watermarkInfo.getGapY(), lineHeight * 3 + 40);
+
+            double radians = Math.toRadians(watermarkInfo.getRotate());
+
+            int colorInt = Color.decode(watermarkInfo.getColor()).getRGB();
+            BaseColor baseColor = new BaseColor(
+                    (colorInt >> 16) & 0xFF,
+                    (colorInt >> 8) & 0xFF,
+                    colorInt & 0xFF
+            );
+
+            PdfGState gs = new PdfGState();
+            gs.setFillOpacity(watermarkInfo.getOpacity());
+            gs.setStrokeOpacity(watermarkInfo.getOpacity());
+
+            contentByte.saveState();
+            contentByte.setGState(gs);
+            contentByte.beginText();
+            contentByte.setFontAndSize(baseFont, fontSize);
+            contentByte.setColorFill(baseColor);
+
+            int cols = (int) Math.ceil(contentWidth / blockWidth) + 2;
+            int rows = (int) Math.ceil(contentHeight / blockHeight) + 2;
+
+            float startX = marginLeft - blockWidth;
+            float startY = marginBottom - blockHeight;
+
+            for (int row = 0; row < rows; row++) {
+                for (int col = 0; col < cols; col++) {
+                    float centerX = startX + col * blockWidth + blockWidth / 2;
+                    float centerY = startY + row * blockHeight + blockHeight / 2;
+
+                    drawRotatedText(contentByte, line1, centerX, centerY + lineHeight, radians);
+                    drawRotatedText(contentByte, line2, centerX, centerY, radians);
+                    drawRotatedText(contentByte, line3, centerX, centerY - lineHeight, radians);
+                }
+            }
+
+            contentByte.endText();
+            contentByte.restoreState();
+        }
+
+        private void drawRotatedText(PdfContentByte contentByte, String text,
+                                      float x, float y, double radians) {
+            if (text == null || text.isEmpty()) {
+                return;
+            }
+            float textWidth = baseFont.getWidthPoint(text, watermarkInfo.getFontSize());
+            float cos = (float) Math.cos(radians);
+            float sin = (float) Math.sin(radians);
+            float adjustedX = x - (textWidth / 2) * cos;
+            float adjustedY = y + (textWidth / 2) * sin;
+
+            contentByte.showTextAligned(
+                    Element.ALIGN_CENTER,
+                    text,
+                    x,
+                    y,
+                    watermarkInfo.getRotate()
+            );
+        }
+    }
+
     public byte[] exportFromRenderResult(RenderResult renderResult) {
+        return exportFromRenderResult(renderResult, null);
+    }
+
+    public byte[] exportFromRenderResult(RenderResult renderResult, WatermarkInfo watermarkInfo) {
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             Document document = new Document(PageSize.A4, 50, 50, 50, 50);
-            PdfWriter.getInstance(document, outputStream);
+            PdfWriter writer = PdfWriter.getInstance(document, outputStream);
+
+            if (watermarkInfo != null) {
+                writer.setPageEvent(new WatermarkPageEvent(watermarkInfo));
+            }
+
             document.open();
 
             addTitle(document, renderResult);
@@ -40,9 +177,18 @@ public class PdfExporter {
     }
 
     public byte[] exportDataSet(String title, List<Map<String, Object>> data) {
+        return exportDataSet(title, data, null);
+    }
+
+    public byte[] exportDataSet(String title, List<Map<String, Object>> data, WatermarkInfo watermarkInfo) {
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             Document document = new Document(PageSize.A4, 50, 50, 50, 50);
-            PdfWriter.getInstance(document, outputStream);
+            PdfWriter writer = PdfWriter.getInstance(document, outputStream);
+
+            if (watermarkInfo != null) {
+                writer.setPageEvent(new WatermarkPageEvent(watermarkInfo));
+            }
+
             document.open();
 
             if (title != null && !title.isEmpty()) {
@@ -151,8 +297,7 @@ public class PdfExporter {
     private Font getTitleFont() {
         try {
             BaseFont baseFont = BaseFont.createFont("STSong-Light", "UniGB-UCS2-H", BaseFont.NOT_EMBEDDED);
-            Font font = new Font(baseFont, 18, Font.BOLD);
-            return font;
+            return new Font(baseFont, 18, Font.BOLD);
         } catch (Exception e) {
             return new Font(Font.HELVETICA, 18, Font.BOLD);
         }
@@ -161,8 +306,7 @@ public class PdfExporter {
     private Font getHeaderFont() {
         try {
             BaseFont baseFont = BaseFont.createFont("STSong-Light", "UniGB-UCS2-H", BaseFont.NOT_EMBEDDED);
-            Font font = new Font(baseFont, 12, Font.BOLD);
-            return font;
+            return new Font(baseFont, 12, Font.BOLD);
         } catch (Exception e) {
             return new Font(Font.HELVETICA, 12, Font.BOLD);
         }
@@ -171,8 +315,7 @@ public class PdfExporter {
     private Font getDataFont() {
         try {
             BaseFont baseFont = BaseFont.createFont("STSong-Light", "UniGB-UCS2-H", BaseFont.NOT_EMBEDDED);
-            Font font = new Font(baseFont, 10, Font.NORMAL);
-            return font;
+            return new Font(baseFont, 10, Font.NORMAL);
         } catch (Exception e) {
             return new Font(Font.HELVETICA, 10, Font.NORMAL);
         }

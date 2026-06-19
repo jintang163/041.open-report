@@ -21,6 +21,8 @@ import {
   handlePrint,
   downloadBlob
 } from '../preview/utils/report'
+import Watermark from '@/components/Watermark'
+import useAntiScreenCapture from '@/hooks/useAntiScreenCapture'
 import dayjs from 'dayjs'
 
 const { Title } = Typography
@@ -40,6 +42,16 @@ interface ViewerState {
 }
 
 const ViewerPage: React.FC = () => {
+  useAntiScreenCapture({
+    disableContextMenu: true,
+    disableTextSelection: true,
+    disableCopy: true,
+    disablePrint: true,
+    disableScreenshotKeys: true,
+    enableScreenshotDetection: true,
+    enableBlurOnVisibilityChange: true
+  })
+
   const { token } = useParams<{ token: string }>()
   const [form] = Form.useForm()
   const [state, setState] = useState<ViewerState>({
@@ -330,6 +342,7 @@ const ViewerPage: React.FC = () => {
 
   return (
     <div style={{ background: '#f5f5f5', minHeight: '100vh', padding: state.isMobile ? 8 : 16 }}>
+      <Watermark>
       <div style={{ maxWidth: state.isMobile ? '100%' : 1400, margin: '0 auto' }}>
         <Spin spinning={state.loading} tip="加载中...">
           <div style={{ background: '#fff', borderRadius: 8, padding: state.isMobile ? 12 : '20px 24px', marginBottom: 16 }}>
@@ -540,6 +553,7 @@ const ViewerPage: React.FC = () => {
           </div>
         </Spin>
       </div>
+      </Watermark>
     </div>
   )
 }

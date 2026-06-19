@@ -5,9 +5,21 @@ import { FullscreenOutlined, FullscreenExitOutlined, ReloadOutlined, EditOutline
 import ReactECharts from 'echarts-for-react'
 import { getDashboardDetail, getChartData } from '@/api/dashboard'
 import { buildChartOption } from '../dashboard-designer/utils/chartOptions'
+import Watermark from '@/components/Watermark'
+import useAntiScreenCapture from '@/hooks/useAntiScreenCapture'
 import type { ChartDashboard, ChartDashboardItem } from '@/types'
 
 const DashboardViewer: React.FC = () => {
+  useAntiScreenCapture({
+    disableContextMenu: true,
+    disableTextSelection: true,
+    disableCopy: true,
+    disablePrint: true,
+    disableScreenshotKeys: true,
+    enableScreenshotDetection: true,
+    enableBlurOnVisibilityChange: true
+  })
+
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
@@ -126,6 +138,7 @@ const DashboardViewer: React.FC = () => {
   }
 
   return (
+    <Watermark>
     <div
       ref={containerRef}
       style={{
@@ -252,6 +265,7 @@ const DashboardViewer: React.FC = () => {
         </div>
       )}
     </div>
+    </Watermark>
   )
 }
 
