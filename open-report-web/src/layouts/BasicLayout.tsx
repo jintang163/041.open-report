@@ -19,7 +19,8 @@ import {
   FundScreenOutlined,
   ThunderboltOutlined,
   LockOutlined,
-  EyeOutlined
+  EyeOutlined,
+  FunctionOutlined
 } from '@ant-design/icons'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useUserStore } from '@/store/user'
@@ -43,7 +44,8 @@ const iconMap: Record<string, any> = {
   ThunderboltOutlined: <ThunderboltOutlined />,
   SettingOutlined: <SettingOutlined />,
   LockOutlined: <LockOutlined />,
-  EyeOutlined: <EyeOutlined />
+  EyeOutlined: <EyeOutlined />,
+  FunctionOutlined: <FunctionOutlined />
 }
 
 const staticMenuConfig: Record<string, { icon: string; label: string }> = {
@@ -53,6 +55,7 @@ const staticMenuConfig: Record<string, { icon: string; label: string }> = {
   '/ai-report': { icon: 'ThunderboltOutlined', label: 'AI智能报表' },
   '/pivot-designer': { icon: 'FundScreenOutlined', label: '交叉报表' },
   '/report': { icon: 'FileTextOutlined', label: '报表管理' },
+  '/function': { icon: 'FunctionOutlined', label: '函数仓库' },
   '/schedule': { icon: 'ScheduleOutlined', label: '调度管理' },
   '/subscription': { icon: 'BellOutlined', label: '订阅通知' },
   '/screen': { icon: 'FundScreenOutlined', label: '可视化大屏' },
@@ -90,7 +93,7 @@ function buildMenuItemsFromPermissions(menus: MenuItem[], permissions: string[])
 function buildMenuFromPaths(paths: Set<string>) {
   const items: any[] = []
 
-  const topLevelPaths = ['/dashboard', '/datasource', '/dataset', '/ai-report', '/pivot-designer', '/report', '/schedule', '/subscription', '/screen', '/embed/demo']
+  const topLevelPaths = ['/dashboard', '/datasource', '/dataset', '/ai-report', '/pivot-designer', '/report', '/function', '/schedule', '/subscription', '/screen', '/embed/demo']
   for (const path of topLevelPaths) {
     if (paths.has(path) && staticMenuConfig[path]) {
       const config = staticMenuConfig[path]
@@ -134,6 +137,7 @@ function buildFullMenu() {
     { key: '/ai-report', icon: iconMap['ThunderboltOutlined'], label: 'AI智能报表' },
     { key: '/pivot-designer', icon: iconMap['FundScreenOutlined'], label: '交叉报表' },
     { key: '/report', icon: iconMap['FileTextOutlined'], label: '报表管理' },
+    { key: '/function', icon: iconMap['FunctionOutlined'], label: '函数仓库' },
     { key: '/schedule', icon: iconMap['ScheduleOutlined'], label: '调度管理' },
     { key: '/subscription', icon: iconMap['BellOutlined'], label: '订阅通知' },
     { key: '/screen', icon: iconMap['FundScreenOutlined'], label: '可视化大屏' },

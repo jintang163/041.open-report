@@ -20,11 +20,29 @@ public class FunctionInitializer {
     @Autowired
     private CellExpressionParser cellExpressionParser;
 
+    @Autowired(required = false)
+    private CustomFunctionLoader customFunctionLoader;
+
     @PostConstruct
     public void init() {
         BuiltinFunctions.setCellExpressionParser(cellExpressionParser);
         registerBuiltinFunctions();
         log.info("Built-in functions initialized, total: {}", functionRegistry.getAllMeta().size());
+        loadCustomFunctionsOnStartup();
+    }
+
+    private void loadCustomFunctionsOnStartup() {
+        if (customFunctionLoader == null) {
+            log.info("No CustomFunctionLoader found, skip loading custom functions");
+            return;
+        }
+        try {
+            List<Map<String, Object>> functions = customFunctionLoader.loadEnabledCustomFunctions();
+            loadCustomFunctions(functions);
+            log.info("Custom functions loaded on startup, total: {}", functions != null ? functions.size() : 0);
+        } catch (Exception e) {
+            log.warn("Failed to load custom functions on startup, will retry later", e);
+        }
     }
 
     private void registerBuiltinFunctions() {

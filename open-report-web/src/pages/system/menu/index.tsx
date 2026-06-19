@@ -63,6 +63,15 @@ const mockMenus: Menu[] = [
       { id: 45, name: '发布', path: '', icon: '', component: '', parentId: 4, sort: 5, type: 2, perms: 'report:publish' }
     ]
   },
+  { id: 6, name: '函数仓库', path: '/function', icon: 'FunctionOutlined', component: '/function/index', parentId: 0, sort: 6, type: 1, perms: '',
+    children: [
+      { id: 61, name: '查询', path: '', icon: '', component: '', parentId: 6, sort: 1, type: 2, perms: 'function:query' },
+      { id: 62, name: '新增', path: '', icon: '', component: '', parentId: 6, sort: 2, type: 2, perms: 'function:add' },
+      { id: 63, name: '编辑', path: '', icon: '', component: '', parentId: 6, sort: 3, type: 2, perms: 'function:edit' },
+      { id: 64, name: '删除', path: '', icon: '', component: '', parentId: 6, sort: 4, type: 2, perms: 'function:remove' },
+      { id: 65, name: '测试', path: '', icon: '', component: '', parentId: 6, sort: 5, type: 2, perms: 'function:test' }
+    ]
+  },
   { id: 5, name: '系统管理', path: '/system', icon: 'SettingOutlined', component: '', parentId: 0, sort: 5, type: 1, perms: '',
     children: [
       { id: 51, name: '用户管理', path: '/system/user', icon: 'UserOutlined', component: '/system/user/index', parentId: 5, sort: 1, type: 1, perms: '',

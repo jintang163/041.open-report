@@ -69,11 +69,17 @@ public class FunctionRegistry {
     }
 
     public void clearCustomFunctions() {
-        metaMap.entrySet().removeIf(entry -> "CUSTOM".equals(entry.getValue().getCategory()));
-        executorMap.entrySet().removeIf(entry -> {
-            com.openreport.engine.function.FunctionMeta meta = metaMap.get(entry.getKey());
-            return meta != null && "CUSTOM".equals(meta.getCategory());
-        });
+        List<String> customKeys = new ArrayList<>();
+        for (Map.Entry<String, com.openreport.engine.function.FunctionMeta> entry : metaMap.entrySet()) {
+            if ("CUSTOM".equals(entry.getValue().getCategory())) {
+                customKeys.add(entry.getKey());
+            }
+        }
+        for (String key : customKeys) {
+            executorMap.remove(key);
+            metaMap.remove(key);
+            log.info("Cleared custom function: {}", key);
+        }
     }
 
     public void clearAll() {

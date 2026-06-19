@@ -75,6 +75,16 @@ const mockMenus: SysMenu[] = [
     ]
   },
   {
+    id: 6, name: '函数仓库', path: '/function', icon: 'FunctionOutlined', type: 1,
+    children: [
+      { id: 61, name: '查询', path: '', perms: 'function:query', type: 2 },
+      { id: 62, name: '新增', path: '', perms: 'function:add', type: 2 },
+      { id: 63, name: '编辑', path: '', perms: 'function:edit', type: 2 },
+      { id: 64, name: '删除', path: '', perms: 'function:remove', type: 2 },
+      { id: 65, name: '测试', path: '', perms: 'function:test', type: 2 }
+    ]
+  },
+  {
     id: 5, name: '系统管理', path: '/system', icon: 'SettingOutlined', type: 1,
     children: [
       {

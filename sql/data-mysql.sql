@@ -66,6 +66,7 @@ INSERT INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `co
 (202, 2, '报表预览', 'C', '/report/preview', 'report/preview/index', 'report:preview:list', 'view', 3, 1, NOW(), NOW(), 0),
 (203, 2, '调度任务', 'C', '/report/schedule', 'report/schedule/index', 'report:schedule:list', 'time', 4, 1, NOW(), NOW(), 0),
 (204, 2, '执行日志', 'C', '/report/log', 'report/log/index', 'report:log:list', 'log', 5, 1, NOW(), NOW(), 0),
+(205, 2, '函数仓库', 'C', '/function', 'function/index', 'function:list', 'function', 6, 1, NOW(), NOW(), 0),
 
 -- 报表设计按钮
 (2001, 200, '报表创建', 'F', NULL, NULL, 'report:designer:add', NULL, 1, 1, NOW(), NOW(), 0),
@@ -87,6 +88,13 @@ INSERT INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `co
 -- 执行日志按钮
 (2041, 204, '日志查询', 'F', NULL, NULL, 'report:log:query', NULL, 1, 1, NOW(), NOW(), 0),
 (2042, 204, '日志删除', 'F', NULL, NULL, 'report:log:remove', NULL, 2, 1, NOW(), NOW(), 0),
+
+-- 函数仓库按钮
+(2051, 205, '函数查询', 'F', NULL, NULL, 'function:query', NULL, 1, 1, NOW(), NOW(), 0),
+(2052, 205, '函数新增', 'F', NULL, NULL, 'function:add', NULL, 2, 1, NOW(), NOW(), 0),
+(2053, 205, '函数编辑', 'F', NULL, NULL, 'function:edit', NULL, 3, 1, NOW(), NOW(), 0),
+(2054, 205, '函数删除', 'F', NULL, NULL, 'function:remove', NULL, 4, 1, NOW(), NOW(), 0),
+(2055, 205, '函数测试', 'F', NULL, NULL, 'function:test', NULL, 5, 1, NOW(), NOW(), 0),
 
 -- 数据管理子菜单
 (300, 3, '数据源管理', 'C', '/data/source', 'data/source/index', 'data:source:list', 'data-source', 1, 1, NOW(), NOW(), 0),

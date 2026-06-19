@@ -10,6 +10,7 @@ import com.openreport.admin.mapper.ReportFunctionMapper;
 import com.openreport.admin.mapper.ReportFunctionVersionMapper;
 import com.openreport.admin.service.ReportFunctionService;
 import com.openreport.common.exception.BusinessException;
+import com.openreport.engine.function.CustomFunctionLoader;
 import com.openreport.engine.function.FunctionInitializer;
 import com.openreport.engine.function.FunctionMeta;
 import com.openreport.engine.function.FunctionRegistry;
@@ -27,7 +28,8 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-public class ReportFunctionServiceImpl extends ServiceImpl<ReportFunctionMapper, ReportFunction> implements ReportFunctionService {
+public class ReportFunctionServiceImpl extends ServiceImpl<ReportFunctionMapper, ReportFunction>
+        implements ReportFunctionService, CustomFunctionLoader {
 
     @Autowired
     private ReportFunctionVersionMapper versionMapper;
@@ -37,15 +39,6 @@ public class ReportFunctionServiceImpl extends ServiceImpl<ReportFunctionMapper,
 
     @Autowired
     private FunctionInitializer functionInitializer;
-
-    @PostConstruct
-    public void init() {
-        try {
-            reloadCustomFunctions();
-        } catch (Exception e) {
-            log.warn("Initial load custom functions failed, will retry later", e);
-        }
-    }
 
     @Override
     public Page<ReportFunction> pageList(Integer pageNum, Integer pageSize, String funcName, String category, Integer status) {
@@ -292,43 +285,52 @@ public class ReportFunctionServiceImpl extends ServiceImpl<ReportFunctionMapper,
     }
 
     @Override
+    public List<Map<String, Object>> loadEnabledCustomFunctions() {
+        LambdaQueryWrapper<ReportFunction> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ReportFunction::getStatus, 1);
+        wrapper.eq(ReportFunction::getFuncCategory, "CUSTOM");
+        List<ReportFunction> functions = list(wrapper);
+        if (functions.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> funcIds = functions.stream().map(ReportFunction::getId).collect(Collectors.toList());
+        LambdaQueryWrapper<ReportFunctionVersion> versionWrapper = new LambdaQueryWrapper<>();
+        versionWrapper.in(ReportFunctionVersion::getFuncId, funcIds);
+        List<ReportFunctionVersion> allVersions = versionMapper.selectList(versionWrapper);
+        Map<Long, Map<Integer, ReportFunctionVersion>> versionMap = allVersions.stream()
+                .collect(Collectors.groupingBy(ReportFunctionVersion::getFuncId,
+                        Collectors.toMap(ReportFunctionVersion::getVersion, v -> v)));
+
+        List<Map<String, Object>> functionData = new ArrayList<>();
+        for (ReportFunction func : functions) {
+            Map<Integer, ReportFunctionVersion> versions = versionMap.get(func.getId());
+            ReportFunctionVersion currentVersion = versions != null ? versions.get(func.getCurrentVersion()) : null;
+            if (currentVersion == null || StringUtils.isBlank(currentVersion.getScriptContent())) {
+                log.warn("Custom function {} has no valid script, skipped", func.getFuncName());
+                continue;
+            }
+            Map<String, Object> data = new HashMap<>();
+            data.put("funcName", func.getFuncName());
+            data.put("funcLabel", func.getFuncLabel());
+            data.put("funcCategory", func.getFuncCategory());
+            data.put("description", func.getDescription());
+            data.put("paramConfig", func.getParamConfig());
+            data.put("returnType", func.getReturnType());
+            data.put("example", func.getExample());
+            data.put("scriptContent", currentVersion.getScriptContent());
+            functionData.add(data);
+        }
+        return functionData;
+    }
+
+    @Override
     public void reloadCustomFunctions() {
         try {
-            LambdaQueryWrapper<ReportFunction> wrapper = new LambdaQueryWrapper<>();
-            wrapper.eq(ReportFunction::getStatus, 1);
-            wrapper.eq(ReportFunction::getFuncCategory, "CUSTOM");
-            List<ReportFunction> functions = list(wrapper);
-            if (functions.isEmpty()) {
+            List<Map<String, Object>> functionData = loadEnabledCustomFunctions();
+            if (functionData.isEmpty()) {
                 functionRegistry.clearCustomFunctions();
                 return;
-            }
-
-            List<Long> funcIds = functions.stream().map(ReportFunction::getId).collect(Collectors.toList());
-            LambdaQueryWrapper<ReportFunctionVersion> versionWrapper = new LambdaQueryWrapper<>();
-            versionWrapper.in(ReportFunctionVersion::getFuncId, funcIds);
-            List<ReportFunctionVersion> allVersions = versionMapper.selectList(versionWrapper);
-            Map<Long, Map<Integer, ReportFunctionVersion>> versionMap = allVersions.stream()
-                    .collect(Collectors.groupingBy(ReportFunctionVersion::getFuncId,
-                            Collectors.toMap(ReportFunctionVersion::getVersion, v -> v)));
-
-            List<Map<String, Object>> functionData = new ArrayList<>();
-            for (ReportFunction func : functions) {
-                Map<Integer, ReportFunctionVersion> versions = versionMap.get(func.getId());
-                ReportFunctionVersion currentVersion = versions != null ? versions.get(func.getCurrentVersion()) : null;
-                if (currentVersion == null || StringUtils.isBlank(currentVersion.getScriptContent())) {
-                    log.warn("Custom function {} has no valid script, skipped", func.getFuncName());
-                    continue;
-                }
-                Map<String, Object> data = new HashMap<>();
-                data.put("funcName", func.getFuncName());
-                data.put("funcLabel", func.getFuncLabel());
-                data.put("funcCategory", func.getFuncCategory());
-                data.put("description", func.getDescription());
-                data.put("paramConfig", func.getParamConfig());
-                data.put("returnType", func.getReturnType());
-                data.put("example", func.getExample());
-                data.put("scriptContent", currentVersion.getScriptContent());
-                functionData.add(data);
             }
             functionInitializer.loadCustomFunctions(functionData);
             log.info("Reloaded {} custom functions", functionData.size());
