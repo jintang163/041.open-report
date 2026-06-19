@@ -12,6 +12,7 @@ interface PreviewState {
   reportName: string
   params: ReportParam[]
   paramValues: Record<string, any>
+  paramConfigs: any[]
   reportData: ReportRenderResult | null
   loading: boolean
   exporting: boolean
@@ -55,6 +56,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
   reportName: '',
   params: [],
   paramValues: {},
+  paramConfigs: [],
   reportData: null,
   loading: false,
   exporting: false,
@@ -269,6 +271,7 @@ export const usePreviewStore = create<PreviewState>((set, get) => ({
       reportName: '',
       params: [],
       paramValues: {},
+      paramConfigs: [],
       reportData: null,
       loading: false,
       exporting: false,

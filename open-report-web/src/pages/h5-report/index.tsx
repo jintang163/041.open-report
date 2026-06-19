@@ -1,37 +1,62 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import {
   Spin,
   Typography,
-  Divider,
   Result,
   Button,
   Drawer,
-  message
+  message,
+  Modal,
+  Input
 } from 'antd'
 import {
   ArrowLeftOutlined,
   SyncOutlined,
   SettingOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  LockOutlined
 } from '@ant-design/icons'
 import ParamPanel from '../preview/components/ParamPanel'
 import MobileReportView from '../preview/components/MobileReportView'
 import { usePreviewStore } from '../preview/store/preview'
-import { getReportById, exportReportExcel, exportReportPdf } from '@/api/report'
+import {
+  getReportById,
+  exportReportExcel,
+  exportReportPdf,
+  getPublicReportInfo,
+  executePublicReport,
+  getPublicReportParameters,
+  exportPublicReportExcel,
+  exportPublicReportPdf
+} from '@/api/report'
 import { ReportTemplate } from '@/types'
 import { downloadBlob } from '../preview/utils/report'
 
 const { Title } = Typography
 
+interface PublicReportInfo {
+  id: number
+  name: string
+  description?: string
+  params?: any[]
+}
+
 const H5ReportPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>()
+  const { id, token } = useParams<{ id: string; token: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const [reportInfo, setReportInfo] = useState<ReportTemplate | null>(null)
+  const [publicReportInfo, setPublicReportInfo] = useState<PublicReportInfo | null>(null)
   const [initLoading, setInitLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [paramDrawerVisible, setParamDrawerVisible] = useState(false)
+  const [passwordModalVisible, setPasswordModalVisible] = useState(false)
+  const [sharePassword, setSharePassword] = useState('')
+  const [pendingParams, setPendingParams] = useState<Record<string, any> | null>(null)
+
+  const isShareMode = location.pathname.startsWith('/h5/share/')
 
   const setReportId = usePreviewStore((state) => state.setReportId)
   const setReportName = usePreviewStore((state) => state.setReportName)
@@ -48,96 +73,176 @@ const H5ReportPage: React.FC = () => {
     toggleMobile(true)
   }, [toggleMobile])
 
-  useEffect(() => {
-    const loadReport = async () => {
-      if (!id) {
-        setError('报表ID不能为空')
-        setInitLoading(false)
-        return
+  const loadPublicReportWithPassword = useCallback(async (password?: string) => {
+    if (!token) return
+
+    try {
+      setInitLoading(true)
+      const info = await getPublicReportInfo(token, password)
+      setPublicReportInfo(info)
+      setReportId(info.id)
+      setReportName(info.name || '')
+
+      const paramConfigs = await getPublicReportParameters(token, password)
+      if (paramConfigs && paramConfigs.length > 0) {
+        usePreviewStore.setState({ paramConfigs })
       }
 
-      const reportId = Number(id)
-      if (isNaN(reportId)) {
-        setError('无效的报表ID')
-        setInitLoading(false)
-        return
+      const urlParams: Record<string, any> = {}
+      searchParams.forEach((value, key) => {
+        urlParams[key] = value
+      })
+
+      const allParams = { ...params, ...urlParams }
+      if (Object.keys(allParams).length > 0) {
+        usePreviewStore.setState({ params: allParams })
       }
 
-      try {
-        setInitLoading(true)
-        setReportId(reportId)
-
-        const report = await getReportById(reportId)
-        setReportInfo(report)
-        setReportName(report.name || '')
-
-        await loadParams()
-
-        const urlParams: Record<string, any> = {}
-        searchParams.forEach((value, key) => {
-          urlParams[key] = value
-        })
-        if (Object.keys(urlParams).length > 0) {
-          const mergedParams = { ...params, ...urlParams }
-          Object.entries(mergedParams).forEach(([k, v]) => {
-            usePreviewStore.setState({ params: mergedParams })
-          })
-          await executeReportStore()
-        } else {
-          await executeReportStore()
-        }
-      } catch (err: any) {
-        console.error('加载报表失败:', err)
-        setError(err.message || '加载报表失败')
-      } finally {
-        setInitLoading(false)
+      const data = await executePublicReport(token, allParams, password)
+      usePreviewStore.setState({ reportData: data })
+      setError(null)
+    } catch (err: any) {
+      if (err?.message?.includes('密码') || err?.code === 'PASSWORD_REQUIRED') {
+        setPasswordModalVisible(true)
+        setPendingParams({ ...params })
+      } else {
+        console.error('加载分享报表失败:', err)
+        setError(err.message || '分享链接无效或已过期')
       }
+    } finally {
+      setInitLoading(false)
+    }
+  }, [token, searchParams, params, setReportId, setReportName])
+
+  const loadRegularReport = useCallback(async () => {
+    if (!id) {
+      setError('报表ID不能为空')
+      setInitLoading(false)
+      return
     }
 
-    loadReport()
+    const reportId = Number(id)
+    if (isNaN(reportId)) {
+      setError('无效的报表ID')
+      setInitLoading(false)
+      return
+    }
+
+    try {
+      setInitLoading(true)
+      setReportId(reportId)
+
+      const report = await getReportById(reportId)
+      setReportInfo(report)
+      setReportName(report.name || '')
+
+      await loadParams()
+
+      const urlParams: Record<string, any> = {}
+      searchParams.forEach((value, key) => {
+        urlParams[key] = value
+      })
+      if (Object.keys(urlParams).length > 0) {
+        const mergedParams = { ...params, ...urlParams }
+        usePreviewStore.setState({ params: mergedParams })
+        await executeReportStore()
+      } else {
+        await executeReportStore()
+      }
+      setError(null)
+    } catch (err: any) {
+      console.error('加载报表失败:', err)
+      setError(err.message || '加载报表失败')
+    } finally {
+      setInitLoading(false)
+    }
+  }, [id, searchParams, setReportId, setReportName, loadParams, executeReportStore, params])
+
+  useEffect(() => {
+    if (isShareMode) {
+      loadPublicReportWithPassword()
+    } else {
+      loadRegularReport()
+    }
 
     return () => {
       reset()
     }
-  }, [id, searchParams, setReportId, setReportName, loadParams, executeReportStore, reset, params])
+  }, [isShareMode, loadPublicReportWithPassword, loadRegularReport, reset])
+
+  const handlePasswordSubmit = useCallback(async () => {
+    if (!sharePassword.trim()) {
+      message.warning('请输入访问密码')
+      return
+    }
+    setPasswordModalVisible(false)
+    await loadPublicReportWithPassword(sharePassword)
+    setSharePassword('')
+  }, [sharePassword, loadPublicReportWithPassword])
 
   const handleRefresh = useCallback(async () => {
     if (refreshLockRef.current) return
     try {
       refreshLockRef.current = true
       message.loading({ content: '正在刷新...', key: 'refresh', duration: 0 })
-      await executeReportStore()
+
+      if (isShareMode && token) {
+        const password = sharePassword || undefined
+        const data = await executePublicReport(token, params, password)
+        usePreviewStore.setState({ reportData: data })
+      } else {
+        await executeReportStore()
+      }
+
       message.success({ content: '刷新成功', key: 'refresh' })
     } catch {
       message.error({ content: '刷新失败', key: 'refresh' })
     } finally {
       refreshLockRef.current = false
     }
-  }, [executeReportStore])
+  }, [isShareMode, token, params, sharePassword, executeReportStore])
 
   const handleExport = useCallback(async (type: 'excel' | 'pdf' | 'html') => {
-    if (!id) return
     try {
       message.loading({ content: `正在导出${type.toUpperCase()}...`, key: 'export', duration: 0 })
       let blob: Blob
-      if (type === 'excel') {
-        blob = await exportReportExcel(Number(id), params)
-      } else if (type === 'pdf') {
-        blob = await exportReportPdf(Number(id), params)
+
+      if (isShareMode && token) {
+        const password = sharePassword || undefined
+        if (type === 'excel') {
+          blob = await exportPublicReportExcel(token, params, password)
+        } else if (type === 'pdf') {
+          blob = await exportPublicReportPdf(token, params, password)
+        } else {
+          blob = new Blob(['<html><body>HTML export placeholder</body></html>'], { type: 'text/html' })
+        }
+      } else if (id) {
+        if (type === 'excel') {
+          blob = await exportReportExcel(Number(id), params)
+        } else if (type === 'pdf') {
+          blob = await exportReportPdf(Number(id), params)
+        } else {
+          blob = new Blob(['<html><body>HTML export placeholder</body></html>'], { type: 'text/html' })
+        }
       } else {
-        blob = new Blob(['<html><body>HTML export placeholder</body></html>'], { type: 'text/html' })
+        throw new Error('无效的报表标识')
       }
-      downloadBlob(blob, `${reportInfo?.name || 'report'}.${type === 'excel' ? 'xlsx' : type === 'pdf' ? 'pdf' : 'html'}`)
+
+      const fileName = isShareMode
+        ? `${publicReportInfo?.name || 'report'}.${type === 'excel' ? 'xlsx' : type === 'pdf' ? 'pdf' : 'html'}`
+        : `${reportInfo?.name || 'report'}.${type === 'excel' ? 'xlsx' : type === 'pdf' ? 'pdf' : 'html'}`
+
+      downloadBlob(blob, fileName)
       message.success({ content: '导出成功', key: 'export' })
     } catch {
       message.error({ content: '导出失败', key: 'export' })
     }
-  }, [id, params, reportInfo])
+  }, [isShareMode, token, id, params, sharePassword, publicReportInfo, reportInfo])
 
   const handleShare = useCallback(() => {
     const shareData = {
-      title: reportInfo?.name || '报表分享',
-      text: reportInfo?.description || '分享一份报表给您查看',
+      title: isShareMode ? publicReportInfo?.name || '报表分享' : reportInfo?.name || '报表分享',
+      text: isShareMode ? publicReportInfo?.description || '分享一份报表给您查看' : reportInfo?.description || '分享一份报表给您查看',
       url: window.location.href
     }
     if (navigator.share) {
@@ -148,7 +253,10 @@ const H5ReportPage: React.FC = () => {
       navigator.clipboard?.writeText(window.location.href)
       message.success('分享链接已复制到剪贴板')
     }
-  }, [reportInfo])
+  }, [isShareMode, publicReportInfo, reportInfo])
+
+  const currentReportName = isShareMode ? publicReportInfo?.name : reportInfo?.name
+  const currentReportDesc = isShareMode ? publicReportInfo?.description : reportInfo?.description
 
   if (initLoading) {
     return (
@@ -219,9 +327,14 @@ const H5ReportPage: React.FC = () => {
               textOverflow: 'ellipsis'
             }}
           >
-            {reportInfo?.name || '报表预览'}
+            {currentReportName || '报表预览'}
+            {isShareMode && (
+              <LockOutlined
+                style={{ fontSize: 12, color: '#999', marginLeft: 6 }}
+              />
+            )}
           </Title>
-          {reportInfo?.description && (
+          {currentReportDesc && (
             <div
               style={{
                 fontSize: 12,
@@ -232,7 +345,7 @@ const H5ReportPage: React.FC = () => {
                 textOverflow: 'ellipsis'
               }}
             >
-              {reportInfo.description}
+              {currentReportDesc}
             </div>
           )}
         </div>
@@ -296,6 +409,26 @@ const H5ReportPage: React.FC = () => {
       >
         <ParamPanel />
       </Drawer>
+
+      <Modal
+        title="请输入访问密码"
+        open={passwordModalVisible}
+        onCancel={() => {
+          setPasswordModalVisible(false)
+          setSharePassword('')
+        }}
+        onOk={handlePasswordSubmit}
+        okText="确认"
+        cancelText="取消"
+      >
+        <Input.Password
+          placeholder="请输入分享密码"
+          value={sharePassword}
+          onChange={(e) => setSharePassword(e.target.value)}
+          onPressEnter={handlePasswordSubmit}
+          autoFocus
+        />
+      </Modal>
     </div>
   )
 }

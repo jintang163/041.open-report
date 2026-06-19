@@ -143,26 +143,76 @@ export const exportReport = (id: number): Promise<Blob> => {
   return get(`/report/export/${id}`, undefined, { responseType: 'blob' })
 }
 
-export const getPublicReportInfo = (token: string): Promise<{
+export const getPublicReportInfo = (token: string, password?: string): Promise<{
   id: number
   name: string
+  description?: string
   params?: any[]
 }> => {
-  return get(`/report/public/${token}`)
+  return get(`/report/public/${token}`, password ? { password } : undefined)
 }
 
-export const executePublicReport = (token: string, params?: Record<string, any>): Promise<{
+export const getPublicReportParameters = (token: string, password?: string): Promise<any[]> => {
+  return get(`/report/public/params/${token}`, password ? { password } : undefined)
+}
+
+export const executePublicReport = (token: string, params?: Record<string, any>, password?: string): Promise<{
   html?: string
   data?: any
   charts?: any[]
 }> => {
-  return post(`/report/public/execute/${token}`, params)
+  return post(`/report/public/execute/${token}`, params, password ? { params: { password } } : undefined)
 }
 
-export const exportPublicReportExcel = (token: string, params?: Record<string, any>): Promise<Blob> => {
-  return post(`/report/public/export/${token}/excel`, params, { responseType: 'blob' })
+export const exportPublicReportExcel = (token: string, params?: Record<string, any>, password?: string): Promise<Blob> => {
+  const queryParams = new URLSearchParams()
+  if (password) queryParams.set('password', password)
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      queryParams.set(key, String(value))
+    })
+  }
+  return get(`/report/public/export/${token}/excel?${queryParams.toString()}`, undefined, { responseType: 'blob' })
 }
 
-export const exportPublicReportPdf = (token: string, params?: Record<string, any>): Promise<Blob> => {
-  return post(`/report/public/export/${token}/pdf`, params, { responseType: 'blob' })
+export const exportPublicReportPdf = (token: string, params?: Record<string, any>, password?: string): Promise<Blob> => {
+  const queryParams = new URLSearchParams()
+  if (password) queryParams.set('password', password)
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      queryParams.set(key, String(value))
+    })
+  }
+  return get(`/report/public/export/${token}/pdf?${queryParams.toString()}`, undefined, { responseType: 'blob' })
+}
+
+export const generateShareLink = (id: number, expireSeconds?: number, password?: string): Promise<{
+  reportId: number
+  reportName: string
+  shareToken: string
+  shareUrl: string
+  expireTime: string
+  expireSeconds: number
+  hasPassword: boolean
+}> => {
+  const params: Record<string, any> = {}
+  if (expireSeconds) params.expireSeconds = expireSeconds
+  if (password) params.password = password
+  return post(`/report/public/${id}/generate`, undefined, { params })
+}
+
+export const cancelShare = (id: number): Promise<void> => {
+  return post(`/report/public/${id}/cancel`)
+}
+
+export const getShareStatus = (id: number): Promise<{
+  reportId: number
+  shareEnabled: boolean
+  shareToken: string
+  shareUrl: string
+  shareExpireTime: string
+  hasPassword: boolean
+  shareViewCount: number
+}> => {
+  return get(`/report/public/${id}/status`)
 }

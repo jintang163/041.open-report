@@ -43,6 +43,21 @@ public class ReportTemplate implements Serializable {
     @TableField("status")
     private Integer status;
 
+    @TableField("share_enabled")
+    private Integer shareEnabled;
+
+    @TableField("share_token")
+    private String shareToken;
+
+    @TableField("share_expire_time")
+    private LocalDateTime shareExpireTime;
+
+    @TableField("share_password")
+    private String sharePassword;
+
+    @TableField("share_view_count")
+    private Long shareViewCount;
+
     @TableField("create_by")
     private Long createBy;
 

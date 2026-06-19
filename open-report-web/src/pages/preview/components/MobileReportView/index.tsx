@@ -131,10 +131,7 @@ const MobileReportView: React.FC<MobileReportViewProps> = ({ tableData, charts, 
     if (onExport) {
       onExport(type)
     } else {
-      message.loading({ content: `正在导出${type.toUpperCase()}...`, key: 'export', duration: 0 })
-      setTimeout(() => {
-        message.success({ content: `${type.toUpperCase()}导出成功`, key: 'export' })
-      }, 1000)
+      message.warning('请配置导出回调')
     }
   }
 
@@ -176,7 +173,11 @@ const MobileReportView: React.FC<MobileReportViewProps> = ({ tableData, charts, 
       pinchBind.onTouchEnd()
       swipeBind.onTouchEnd(e)
       longPressBind.onTouchEnd(e)
-    }
+    },
+    onMouseDown: longPressBind.onMouseDown,
+    onMouseMove: longPressBind.onMouseMove,
+    onMouseUp: longPressBind.onMouseUp,
+    onMouseLeave: longPressBind.onMouseLeave
   }
 
   const renderCard = (record: any, index: number) => {
@@ -281,7 +282,6 @@ const MobileReportView: React.FC<MobileReportViewProps> = ({ tableData, charts, 
           userSelect: 'none'
         }}
         {...mergedTouchHandlers}
-        {...longPressBind}
       >
         <div
           style={{

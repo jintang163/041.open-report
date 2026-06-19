@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Spin,
@@ -55,6 +55,9 @@ const PreviewPage: React.FC = () => {
   const isMobile = usePreviewStore((state) => state.isMobile)
   const toggleMobile = usePreviewStore((state) => state.toggleMobile)
   const reset = usePreviewStore((state) => state.reset)
+  const exportExcel = usePreviewStore((state) => state.exportExcel)
+  const exportPdf = usePreviewStore((state) => state.exportPdf)
+  const reportName = usePreviewStore((state) => state.reportName)
 
   const {
     writebackConfigs,
@@ -138,6 +141,32 @@ const PreviewPage: React.FC = () => {
       resetWriteback()
     }
   }, [id, setReportId, setReportName, loadParams, executeReport, reset, loadWritebackConfigs, resetWriteback])
+
+  const handleMobileExport = useCallback(async (type: 'excel' | 'pdf' | 'html') => {
+    if (type === 'excel') {
+      await exportExcel()
+    } else if (type === 'pdf') {
+      await exportPdf()
+    } else if (type === 'html') {
+      message.info('HTML 导出功能开发中')
+    }
+  }, [exportExcel, exportPdf])
+
+  const handleMobileShare = useCallback(() => {
+    const shareData = {
+      title: reportName || '报表分享',
+      text: reportInfo?.description || '分享一份报表给您查看',
+      url: window.location.href
+    }
+    if (navigator.share) {
+      navigator.share(shareData)
+        .then(() => message.success('分享成功'))
+        .catch(() => {})
+    } else {
+      navigator.clipboard?.writeText(window.location.href)
+      message.success('分享链接已复制到剪贴板')
+    }
+  }, [reportName, reportInfo])
 
   const pageStyle: React.CSSProperties = isFullscreen
     ? {
@@ -321,7 +350,7 @@ const PreviewPage: React.FC = () => {
               />
             </div>
           ) : isMobile ? (
-            <MobileReportView />
+            <MobileReportView onExport={handleMobileExport} onShare={handleMobileShare} />
           ) : (
             <>
               {reportData?.charts && reportData.charts.length > 0 && <ReportChart />}

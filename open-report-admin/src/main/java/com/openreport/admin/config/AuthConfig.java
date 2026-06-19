@@ -33,7 +33,8 @@ public class AuthConfig implements WebMvcConfigurer {
                         "/favicon.ico",
                         "/error",
                         "/api/open/**",
-                        "/api/embed/**"
+                        "/api/embed/**",
+                        "/report/public/**"
                 );
     }
 
@@ -41,7 +42,7 @@ public class AuthConfig implements WebMvcConfigurer {
     public FilterRegistrationBean<ApiRateLimitFilter> apiRateLimitFilterRegistration() {
         FilterRegistrationBean<ApiRateLimitFilter> registration = new FilterRegistrationBean<>();
         registration.setFilter(apiRateLimitFilter);
-        registration.addUrlPatterns("/api/open/*", "/api/embed/*");
+        registration.addUrlPatterns("/api/open/*", "/api/embed/*", "/report/public/*");
         registration.setName("apiRateLimitFilter");
         registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
         return registration;

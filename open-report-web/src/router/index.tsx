@@ -61,6 +61,11 @@ const routes = [
     meta: { title: '移动端报表' }
   },
   {
+    path: '/h5/share/:token',
+    element: <H5ReportPage />,
+    meta: { title: '报表分享' }
+  },
+  {
     path: '/',
     element: <RequireAuth />,
     children: [
