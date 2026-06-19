@@ -28,7 +28,8 @@ import {
   TableOutlined,
   EyeOutlined,
   SyncOutlined,
-  PlayCircleOutlined
+  PlayCircleOutlined,
+  DatabaseOutlined
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -45,6 +46,7 @@ import {
 import { getDatasourceAll } from '@/api/datasource'
 import SqlEditor from '@/components/SqlEditor'
 import ParamTable from '@/components/ParamTable'
+import SqlLineagePreview from './components/SqlLineagePreview'
 
 interface DatasetItem extends DataSet {
   id: number
@@ -616,7 +618,26 @@ const DatasetManagement = () => {
                 <ParamTable value={params} onChange={setParams} />
               </div>
             )
-          }
+          },
+          ...(editingId ? [{
+            key: 'lineage',
+            label: (
+              <span>
+                <DatabaseOutlined style={{ marginRight: 4 }} />
+                血缘分析
+              </span>
+            ),
+            children: (
+              <div style={{ marginTop: 16 }}>
+                <SqlLineagePreview
+                  dataSetId={editingId}
+                  sqlText={sql}
+                  autoParse={true}
+                  onRefresh={handleRefresh}
+                />
+              </div>
+            )
+          }] : [])
         ]} />
       </Modal>
 

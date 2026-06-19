@@ -1,5 +1,5 @@
 import { get, post, put, del } from '@/utils/request'
-import { ReportTemplate, PageParams, PageResult, ReportTemplateSnapshot, ReportApproval, TemplateVersionDiffDTO, ReportSnapshotConfig, ReportDataSnapshot, SnapshotComparisonResult, SnapshotPageData, SnapshotStorageInfo, ReportSnapshotShard } from '@/types'
+import { ReportTemplate, PageParams, PageResult, ReportTemplateSnapshot, ReportApproval, TemplateVersionDiffDTO, ReportSnapshotConfig, ReportDataSnapshot, SnapshotComparisonResult, SnapshotPageData, SnapshotStorageInfo, ReportSnapshotShard, DataLineage, LineageTreeResult, LineageTraceResult, ImpactAnalysisResult, SqlParseResult, LineageRefreshResult } from '@/types'
 
 export const executeReportWithSnapshot = (
   id: number,
@@ -99,6 +99,82 @@ export const getSnapshotStorageInfo = (snapshotId: number): Promise<SnapshotStor
 
 export const getSnapshotBindNames = (snapshotId: number): Promise<string[]> => {
   return get(`/report-snapshot/data/bind-names/${snapshotId}`)
+}
+
+export const getLineageByReport = (reportId: number): Promise<DataLineage[]> => {
+  return get(`/lineage/report/${reportId}`)
+}
+
+export const getLineageTrace = (reportId: number, reportField: string): Promise<LineageTraceResult> => {
+  return get(`/lineage/report/${reportId}/field/${reportField}`)
+}
+
+export const getLineageTree = (reportId: number): Promise<LineageTreeResult> => {
+  return get(`/lineage/report/${reportId}/tree`)
+}
+
+export const getLineageByDataSet = (dataSetId: number): Promise<DataLineage[]> => {
+  return get(`/lineage/dataset/${dataSetId}`)
+}
+
+export const getLineageByDatasource = (datasourceId: number): Promise<DataLineage[]> => {
+  return get(`/lineage/datasource/${datasourceId}`)
+}
+
+export const getLineageByTable = (datasourceId: number, tableName: string): Promise<DataLineage[]> => {
+  return get(`/lineage/datasource/${datasourceId}/table/${tableName}`)
+}
+
+export const getLineageByTableColumn = (
+  datasourceId: number,
+  tableName: string,
+  columnName: string
+): Promise<DataLineage[]> => {
+  return get(`/lineage/datasource/${datasourceId}/table/${tableName}/column/${columnName}`)
+}
+
+export const analyzeImpact = (
+  datasourceId: number,
+  tableName: string,
+  columnName?: string
+): Promise<ImpactAnalysisResult> => {
+  return get('/lineage/impact', { datasourceId, tableName, columnName })
+}
+
+export const getAffectedReports = (
+  datasourceId: number,
+  tableName: string,
+  columnName?: string
+): Promise<DataLineage[]> => {
+  return get('/lineage/impact/reports', { datasourceId, tableName, columnName })
+}
+
+export const getAffectedDataSets = (
+  datasourceId: number,
+  tableName: string,
+  columnName?: string
+): Promise<DataLineage[]> => {
+  return get('/lineage/impact/datasets', { datasourceId, tableName, columnName })
+}
+
+export const parseSqlLineage = (dataSetId: number): Promise<SqlParseResult> => {
+  return get(`/lineage/parse-sql/${dataSetId}`)
+}
+
+export const refreshLineageForReport = (reportId: number): Promise<LineageRefreshResult> => {
+  return post(`/lineage/refresh/report/${reportId}`)
+}
+
+export const refreshLineageForDataSet = (dataSetId: number): Promise<LineageRefreshResult> => {
+  return post(`/lineage/refresh/dataset/${dataSetId}`)
+}
+
+export const deleteLineageByReport = (reportId: number): Promise<boolean> => {
+  return del(`/lineage/report/${reportId}`)
+}
+
+export const deleteLineageByDataSet = (dataSetId: number): Promise<boolean> => {
+  return del(`/lineage/dataset/${dataSetId}`)
 }
 
 export const getReportList = (params: PageParams): Promise<PageResult<ReportTemplate>> => {

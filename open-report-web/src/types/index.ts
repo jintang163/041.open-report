@@ -736,6 +736,135 @@ export interface SnapshotStorageInfo {
   }
 }
 
+export interface DataLineage {
+  id?: number
+  reportId?: number
+  reportName?: string
+  reportField?: string
+  reportFieldTitle?: string
+  dataSetId?: number
+  dataSetName?: string
+  dataSetField?: string
+  bindName?: string
+  expression?: string
+  lineageType?: 'DIRECT' | 'EXPRESSION' | 'AGGREGATION'
+  datasourceId?: number
+  datasourceName?: string
+  datasourceType?: string
+  databaseName?: string
+  schemaName?: string
+  tableName?: string
+  columnName?: string
+  sourceTables?: string
+  sourceColumns?: string
+  sqlText?: string
+  lineageHash?: string
+  status?: number
+  createTime?: string
+  updateTime?: string
+}
+
+export interface LineageTreeNode {
+  id: string
+  name: string
+  type: 'report' | 'dataSet' | 'table' | 'column' | 'reportField'
+  children?: LineageTreeNode[]
+  field?: string
+  title?: string
+  expression?: string
+  lineageType?: string
+  tableName?: string
+  columnName?: string
+  datasourceId?: number
+  datasourceName?: string
+  databaseName?: string
+  schemaName?: string
+  dataSetField?: string
+}
+
+export interface LineageTraceNode {
+  level: number
+  type: 'report' | 'dataSet' | 'database'
+  name: string
+  field?: string
+  title?: string
+  expression?: string
+  lineageType?: string
+  datasourceName?: string
+  databaseName?: string
+  tableName?: string
+  columnName?: string
+  sqlText?: string
+}
+
+export interface LineageTraceResult {
+  success: boolean
+  message?: string
+  reportId?: number
+  reportField?: string
+  trace?: LineageTraceNode[]
+  lineage?: DataLineage
+}
+
+export interface LineageTreeResult {
+  success: boolean
+  message?: string
+  reportId?: number
+  tree?: LineageTreeNode
+  lineageCount?: number
+  dataSetCount?: number
+  tableCount?: number
+}
+
+export interface ImpactAnalysisResult {
+  success: boolean
+  message?: string
+  datasourceId?: number
+  tableName?: string
+  columnName?: string
+  datasourceName?: string
+  datasourceType?: string
+  affectedReportCount?: number
+  affectedDataSetCount?: number
+  affectedFieldCount?: number
+  affectedReports?: DataLineage[]
+  affectedDataSets?: DataLineage[]
+  affectedFields?: string[]
+  lineageByReport?: Record<string, DataLineage[]>
+  allLineage?: DataLineage[]
+}
+
+export interface SqlParseResult {
+  success: boolean
+  message?: string
+  dataSetId?: number
+  dataSetName?: string
+  sqlText?: string
+  tables?: string[]
+  columns?: string[]
+  selectColumns?: string[]
+  whereColumns?: string[]
+  aggregations?: string[]
+  hasAggregation?: boolean
+  tableAliases?: Record<string, string>
+  mainTable?: string
+  datasourceId?: number
+  datasourceName?: string
+  datasourceType?: string
+  databaseName?: string
+  schemaName?: string
+}
+
+export interface LineageRefreshResult {
+  success: boolean
+  message?: string
+  reportId?: number
+  reportName?: string
+  dataSetId?: number
+  lineageCount?: number
+  affectedReportCount?: number
+}
+
 export interface ReportSnapshotShard {
   id?: number
   snapshotId?: number

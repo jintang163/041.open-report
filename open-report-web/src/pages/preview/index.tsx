@@ -15,7 +15,8 @@ import {
   Tooltip,
   Segmented,
   Dropdown,
-  Badge
+  Badge,
+  Layout
 } from 'antd'
 import {
   ArrowLeftOutlined,
@@ -27,7 +28,9 @@ import {
   SettingOutlined,
   BarChartOutlined,
   ClockCircleOutlined,
-  DownOutlined
+  DownOutlined,
+  ShareAltOutlined,
+  WarningOutlined
 } from '@ant-design/icons'
 import ParamPanel from './components/ParamPanel'
 import ReportTable from './components/ReportTable'
@@ -39,6 +42,9 @@ import WritebackHistoryModal from './components/WritebackHistoryModal'
 import SnapshotConfigModal from './components/SnapshotConfigModal'
 import SnapshotHistoryPanel from './components/SnapshotHistoryPanel'
 import SnapshotCompareModal from './components/SnapshotCompareModal'
+import LineageTreePanel from './components/LineageTreePanel'
+import LineageTraceModal from './components/LineageTraceModal'
+import ImpactAnalysisModal from './components/ImpactAnalysisModal'
 import { usePreviewStore, SnapshotMode } from './store/preview'
 import { useWritebackStore } from './store/writeback'
 import { getReportById, compareSnapshotWithRealtime } from '@/api/report'
@@ -48,6 +54,7 @@ import { useReportWebSocket } from '@/hooks/useWebSocket'
 import dayjs from 'dayjs'
 
 const { Title } = Typography
+const { Sider, Content } = Layout
 
 type ViewMode = 'view' | 'edit'
 
@@ -66,6 +73,11 @@ const PreviewPage: React.FC = () => {
   const [compareLoading, setCompareLoading] = useState(false)
   const [compareResult, setCompareResult] = useState<SnapshotComparisonResult | null>(null)
   const [compareMode, setCompareMode] = useState<'snapshot-snapshot' | 'snapshot-realtime'>('snapshot-realtime')
+
+  const [lineageVisible, setLineageVisible] = useState(false)
+  const [traceModalVisible, setTraceModalVisible] = useState(false)
+  const [traceField, setTraceField] = useState<{ field: string; title?: string } | null>(null)
+  const [impactModalVisible, setImpactModalVisible] = useState(false)
 
   const setReportId = usePreviewStore((state) => state.setReportId)
   const setReportName = usePreviewStore((state) => state.setReportName)
@@ -187,6 +199,15 @@ const PreviewPage: React.FC = () => {
   const handleRefreshSnapshotList = async () => {
     await loadSnapshotList()
     await loadSnapshotConfig()
+  }
+
+  const handleFieldLineageTrace = (fieldName: string, fieldTitle?: string) => {
+    setTraceField({ field: fieldName, title: fieldTitle })
+    setTraceModalVisible(true)
+  }
+
+  const handleReportClick = (reportId: number) => {
+    navigate(`/preview/${reportId}`)
   }
 
   useEffect(() => {
@@ -390,6 +411,23 @@ const PreviewPage: React.FC = () => {
                   </Button>
                 </Tooltip>
               )}
+              <Tooltip title="数据血缘分析">
+                <Button
+                  icon={<ShareAltOutlined />}
+                  type={lineageVisible ? 'primary' : 'default'}
+                  onClick={() => setLineageVisible(!lineageVisible)}
+                >
+                  血缘分析
+                </Button>
+              </Tooltip>
+              <Tooltip title="影响分析 - 检查表/字段变更影响">
+                <Button
+                  icon={<WarningOutlined />}
+                  onClick={() => setImpactModalVisible(true)}
+                >
+                  影响分析
+                </Button>
+              </Tooltip>
               <Button
                 icon={<SyncOutlined spin={shouldRefresh} />}
                 onClick={handleManualRefresh}
@@ -500,7 +538,28 @@ const PreviewPage: React.FC = () => {
 
         <ReportToolbar showViewMode contentId="report-content" />
 
-        <div id="report-content">
+        <Layout style={{ background: 'transparent', gap: lineageVisible ? 16 : 0 }}>
+          {lineageVisible && !isMobile && (
+            <Sider
+              width={360}
+              style={{
+                background: 'transparent',
+                height: 'calc(100vh - 200px)',
+                position: 'sticky',
+                top: 16,
+                overflow: 'hidden'
+              }}
+            >
+              <LineageTreePanel
+                reportId={Number(id)}
+                reportName={reportName || reportInfo?.name || ''}
+                onFieldClick={(fieldName) => handleFieldLineageTrace(fieldName)}
+              />
+            </Sider>
+          )}
+
+          <Content>
+            <div id="report-content">
           {reportData?.title && (
             <>
               <div style={{ background: '#fff', borderRadius: 8, padding: '16px 24px', marginBottom: 16 }}>
@@ -556,6 +615,8 @@ const PreviewPage: React.FC = () => {
             </>
           )}
         </div>
+          </Content>
+        </Layout>
 
         {id && (
           <WritebackHistoryModal
@@ -601,6 +662,25 @@ const PreviewPage: React.FC = () => {
               handleCompareWithRealtime(selectedSnapshotId)
             }
           }}
+        />
+
+        {traceField && (
+          <LineageTraceModal
+            visible={traceModalVisible}
+            reportId={Number(id)}
+            reportField={traceField.field}
+            fieldTitle={traceField.title}
+            onClose={() => {
+              setTraceModalVisible(false)
+              setTraceField(null)
+            }}
+          />
+        )}
+
+        <ImpactAnalysisModal
+          visible={impactModalVisible}
+          onClose={() => setImpactModalVisible(false)}
+          onReportClick={handleReportClick}
         />
       </div>
     </div>
