@@ -22,6 +22,7 @@ import SubscriptionManagement from '@/pages/subscription'
 import EmbedDemo from '@/pages/embed/demo'
 import PrintPage from '@/pages/print'
 import PreviewPage from '@/pages/preview'
+import FunctionManagement from '@/pages/function'
 import { useUserStore } from '@/store/user'
 import { ComponentType } from 'react'
 
@@ -93,6 +94,11 @@ const routes = [
             path: 'report',
             element: withLoading(ReportManagement)(),
             meta: { title: '报表管理', icon: 'FileTextOutlined' }
+          },
+          {
+            path: 'function',
+            element: withLoading(FunctionManagement)(),
+            meta: { title: '函数仓库', icon: 'FunctionOutlined' }
           },
           {
             path: 'approval',

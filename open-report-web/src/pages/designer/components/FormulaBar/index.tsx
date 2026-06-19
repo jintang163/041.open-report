@@ -13,19 +13,16 @@ import {
   getCellValue,
   refreshLuckysheet
 } from '../../utils/luckysheet'
+import { getFunctionDocs } from '@/api/function'
+import type { FunctionDoc, FunctionCategory } from '@/types'
 
-const COMMON_FUNCTIONS = [
-  { key: 'SUM', label: 'SUM - 求和' },
-  { key: 'AVG', label: 'AVG - 平均值' },
-  { key: 'COUNT', label: 'COUNT - 计数' },
-  { key: 'MAX', label: 'MAX - 最大值' },
-  { key: 'MIN', label: 'MIN - 最小值' },
-  { key: 'IF', label: 'IF - 条件判断' },
-  { key: 'CONCAT', label: 'CONCAT - 拼接' },
-  { key: 'ROUND', label: 'ROUND - 四舍五入' },
-  { key: 'TODAY', label: 'TODAY - 今天' },
-  { key: 'NOW', label: 'NOW - 当前时间' }
-]
+const CATEGORY_LABELS: Record<FunctionCategory, string> = {
+  MATH: '数学函数',
+  DATE: '日期函数',
+  STRING: '字符串函数',
+  LOGIC: '逻辑函数',
+  CUSTOM: '自定义函数'
+}
 
 const FormulaBar: React.FC = () => {
   const {
@@ -36,14 +33,91 @@ const FormulaBar: React.FC = () => {
   } = useDesignerStore()
 
   const [editing, setEditing] = useState(false)
+  const [functionDocs, setFunctionDocs] = useState<FunctionDoc[]>([])
+  const [loading, setLoading] = useState(false)
   const inputRef = useRef<any>(null)
+
+  useEffect(() => {
+    loadFunctionDocs()
+  }, [])
+
+  const loadFunctionDocs = async () => {
+    try {
+      setLoading(true)
+      const data = await getFunctionDocs()
+      setFunctionDocs(data || [])
+    } catch (err) {
+      console.error('加载函数列表失败:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const cellRef = selectedCell
     ? cellPositionToRef(selectedCell.row, selectedCell.col)
     : ''
 
+  const buildFunctionMenu = (): MenuProps['items'] => {
+    if (functionDocs.length === 0) {
+      return [{ key: 'empty', label: '暂无可用函数', disabled: true }]
+    }
+
+    const categories: FunctionCategory[] = ['MATH', 'DATE', 'STRING', 'LOGIC', 'CUSTOM']
+    const items: MenuProps['items'] = []
+
+    categories.forEach((category, idx) => {
+      const funcs = functionDocs.filter((f) => f.category === category && f.status === 1)
+      if (funcs.length === 0) return
+
+      if (idx > 0) {
+        items.push({ type: 'divider' as const })
+      }
+
+      items.push({
+        key: `group-${category}`,
+        label: (
+          <span style={{ fontSize: 12, color: '#999', fontWeight: 500 }}>
+            {CATEGORY_LABELS[category]}
+          </span>
+        ),
+        disabled: true
+      })
+
+      funcs.forEach((func) => {
+        items.push({
+          key: func.name,
+          label: (
+            <div style={{ padding: '2px 0' }}>
+              <div style={{ fontWeight: 500 }}>
+                {func.name} - {func.label}
+              </div>
+              {func.description && (
+                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+                  {func.description}
+                </div>
+              )}
+              {func.example && (
+                <div style={{ fontSize: 11, color: '#bbb', fontFamily: 'monospace', marginTop: 2 }}>
+                  示例: {func.example}
+                </div>
+              )}
+            </div>
+          )
+        })
+      })
+    })
+
+    return items
+  }
+
   const handleFunctionSelect: MenuProps['onClick'] = ({ key }) => {
-    const formula = `${key}()`
+    if (key.startsWith('group-') || key === 'empty') return
+    const func = functionDocs.find((f) => f.name === key)
+    let paramStr = ''
+    if (func?.params && func.params.length > 0) {
+      paramStr = func.params.map((p) => p.name).join(', ')
+    }
+    const formula = `${key}(${paramStr})`
     setCellValue(formula)
     setEditing(true)
     setTimeout(() => {
@@ -91,10 +165,7 @@ const FormulaBar: React.FC = () => {
 
   const functionMenu: MenuProps = {
     onClick: handleFunctionSelect,
-    items: COMMON_FUNCTIONS.map((f) => ({
-      key: f.key,
-      label: f.label
-    }))
+    items: buildFunctionMenu()
   }
 
   return (
@@ -150,7 +221,7 @@ const FormulaBar: React.FC = () => {
         )}
       </Space>
 
-      <Dropdown menu={functionMenu} trigger={['click']}>
+      <Dropdown menu={functionMenu} trigger={['click']} loading={loading}>
         <Button size="small" type="text">
           函数 ▼
         </Button>

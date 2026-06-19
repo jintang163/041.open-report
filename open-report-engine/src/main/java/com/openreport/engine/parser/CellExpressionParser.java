@@ -1,7 +1,9 @@
 package com.openreport.engine.parser;
 
 import com.openreport.common.exception.BusinessException;
+import com.openreport.engine.function.FunctionRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -11,6 +13,9 @@ import java.util.regex.Pattern;
 @Slf4j
 @Component
 public class CellExpressionParser {
+
+    @Autowired
+    private FunctionRegistry functionRegistry;
 
     private static final Pattern EXPRESSION_PATTERN = Pattern.compile("\\$\\{([^}]+)\\}");
 
@@ -130,27 +135,18 @@ public class CellExpressionParser {
     private Object evaluateFunction(String functionName, String args, Map<String, List<Map<String, Object>>> dataSets,
                                      int currentRow, Map<String, Object> parameters) {
         List<String> argList = parseFunctionArgs(args);
-        switch (functionName.toLowerCase()) {
-            case "sum":
-                return evaluateSum(argList, dataSets);
-            case "avg":
-                return evaluateAvg(argList, dataSets);
-            case "count":
-                return evaluateCount(argList, dataSets);
-            case "max":
-                return evaluateMax(argList, dataSets);
-            case "min":
-                return evaluateMin(argList, dataSets);
-            case "if":
-                return evaluateIf(argList, dataSets, currentRow, parameters);
-            case "concat":
-                return evaluateConcat(argList, dataSets, currentRow, parameters);
-            default:
-                throw new BusinessException("Unsupported function: " + functionName);
+        List<Object> evaluatedArgs = new ArrayList<>();
+        for (String arg : argList) {
+            Object val = evaluateExpression(arg, dataSets, currentRow, parameters);
+            evaluatedArgs.add(val);
         }
+        if (functionRegistry.isRegistered(functionName)) {
+            return functionRegistry.execute(functionName, evaluatedArgs, dataSets, currentRow, parameters);
+        }
+        throw new BusinessException("不支持的函数: " + functionName);
     }
 
-    private List<String> parseFunctionArgs(String args) {
+    public List<String> parseFunctionArgs(String args) {
         List<String> result = new ArrayList<>();
         if (args == null || args.trim().isEmpty()) {
             return result;
@@ -172,102 +168,6 @@ public class CellExpressionParser {
             result.add(current.toString().trim());
         }
         return result;
-    }
-
-    private Object evaluateSum(List<String> args, Map<String, List<Map<String, Object>>> dataSets) {
-        if (args.size() != 1) throw new BusinessException("SUM function requires 1 argument");
-        ExpressionInfo info = parseExpressionInfo(args.get(0));
-        List<Map<String, Object>> data = dataSets.get(info.getDataSetName());
-        if (data == null) return 0;
-        double sum = 0;
-        for (Map<String, Object> row : data) {
-            Object val = row.get(info.getFieldName());
-            if (val instanceof Number) sum += ((Number) val).doubleValue();
-        }
-        return sum;
-    }
-
-    private Object evaluateAvg(List<String> args, Map<String, List<Map<String, Object>>> dataSets) {
-        if (args.size() != 1) throw new BusinessException("AVG function requires 1 argument");
-        ExpressionInfo info = parseExpressionInfo(args.get(0));
-        List<Map<String, Object>> data = dataSets.get(info.getDataSetName());
-        if (data == null || data.isEmpty()) return 0;
-        double sum = 0;
-        int count = 0;
-        for (Map<String, Object> row : data) {
-            Object val = row.get(info.getFieldName());
-            if (val instanceof Number) {
-                sum += ((Number) val).doubleValue();
-                count++;
-            }
-        }
-        return count == 0 ? 0 : sum / count;
-    }
-
-    private Object evaluateCount(List<String> args, Map<String, List<Map<String, Object>>> dataSets) {
-        if (args.size() != 1) throw new BusinessException("COUNT function requires 1 argument");
-        ExpressionInfo info = parseExpressionInfo(args.get(0));
-        List<Map<String, Object>> data = dataSets.get(info.getDataSetName());
-        if (data == null) return 0;
-        int count = 0;
-        for (Map<String, Object> row : data) {
-            if (row.get(info.getFieldName()) != null) count++;
-        }
-        return count;
-    }
-
-    private Object evaluateMax(List<String> args, Map<String, List<Map<String, Object>>> dataSets) {
-        if (args.size() != 1) throw new BusinessException("MAX function requires 1 argument");
-        ExpressionInfo info = parseExpressionInfo(args.get(0));
-        List<Map<String, Object>> data = dataSets.get(info.getDataSetName());
-        if (data == null || data.isEmpty()) return null;
-        double max = Double.MIN_VALUE;
-        for (Map<String, Object> row : data) {
-            Object val = row.get(info.getFieldName());
-            if (val instanceof Number) max = Math.max(max, ((Number) val).doubleValue());
-        }
-        return max;
-    }
-
-    private Object evaluateMin(List<String> args, Map<String, List<Map<String, Object>>> dataSets) {
-        if (args.size() != 1) throw new BusinessException("MIN function requires 1 argument");
-        ExpressionInfo info = parseExpressionInfo(args.get(0));
-        List<Map<String, Object>> data = dataSets.get(info.getDataSetName());
-        if (data == null || data.isEmpty()) return null;
-        double min = Double.MAX_VALUE;
-        for (Map<String, Object> row : data) {
-            Object val = row.get(info.getFieldName());
-            if (val instanceof Number) min = Math.min(min, ((Number) val).doubleValue());
-        }
-        return min;
-    }
-
-    private Object evaluateIf(List<String> args, Map<String, List<Map<String, Object>>> dataSets,
-                               int currentRow, Map<String, Object> parameters) {
-        if (args.size() < 2 || args.size() > 3) throw new BusinessException("IF function requires 2 or 3 arguments");
-        Object condition = evaluateExpression(args.get(0), dataSets, currentRow, parameters);
-        boolean result;
-        if (condition instanceof Boolean) {
-            result = (Boolean) condition;
-        } else {
-            result = condition != null && !"false".equalsIgnoreCase(condition.toString()) && !"0".equals(condition.toString());
-        }
-        if (result) {
-            return evaluateExpression(args.get(1), dataSets, currentRow, parameters);
-        } else if (args.size() == 3) {
-            return evaluateExpression(args.get(2), dataSets, currentRow, parameters);
-        }
-        return null;
-    }
-
-    private Object evaluateConcat(List<String> args, Map<String, List<Map<String, Object>>> dataSets,
-                                   int currentRow, Map<String, Object> parameters) {
-        StringBuilder sb = new StringBuilder();
-        for (String arg : args) {
-            Object val = evaluateExpression(arg, dataSets, currentRow, parameters);
-            if (val != null) sb.append(val);
-        }
-        return sb.toString();
     }
 
     private Object getFieldValue(Map<String, List<Map<String, Object>>> dataSets,

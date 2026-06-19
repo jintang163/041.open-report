@@ -41,6 +41,7 @@
         <easyexcel.version>3.3.2</easyexcel.version>
         <xxl-job.version>2.4.0</xxl-job.version>
         <hutool.version>5.8.22</hutool.version>
+        <groovy.version>3.0.19</groovy.version>
     </properties>
 
     <dependencyManagement>
@@ -139,6 +140,16 @@
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-lang3</artifactId>
                 <version>3.12.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.codehaus.groovy</groupId>
+                <artifactId>groovy</artifactId>
+                <version>${groovy.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.codehaus.groovy</groupId>
+                <artifactId>groovy-jsr223</artifactId>
+                <version>${groovy.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

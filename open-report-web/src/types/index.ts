@@ -554,3 +554,55 @@ export interface PivotTableResult {
   summary?: Record<string, any>
   drillDownFields?: string[]
 }
+
+export type FunctionCategory = 'MATH' | 'DATE' | 'STRING' | 'LOGIC' | 'CUSTOM'
+
+export interface FunctionParam {
+  name: string
+  type: string
+  required?: boolean
+  description?: string
+}
+
+export interface ReportFunction {
+  id?: number
+  funcName: string
+  funcLabel: string
+  funcCategory?: FunctionCategory
+  description?: string
+  paramConfig?: string
+  params?: FunctionParam[]
+  returnType?: string
+  example?: string
+  status?: number
+  currentVersion?: number
+  scriptContent?: string
+  changeLog?: string
+  createBy?: number
+  createTime?: string
+  updateBy?: number
+  updateTime?: string
+}
+
+export interface ReportFunctionVersion {
+  id?: number
+  funcId: number
+  version: number
+  scriptContent?: string
+  scriptType?: string
+  changeLog?: string
+  createBy?: number
+  createTime?: string
+}
+
+export interface FunctionDoc {
+  id?: number
+  name: string
+  label: string
+  category: FunctionCategory
+  description?: string
+  params?: FunctionParam[]
+  returnType?: string
+  example?: string
+  status: number
+}
