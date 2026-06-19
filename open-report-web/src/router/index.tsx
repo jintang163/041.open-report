@@ -23,6 +23,7 @@ import EmbedDemo from '@/pages/embed/demo'
 import PrintPage from '@/pages/print'
 import PreviewPage from '@/pages/preview'
 import FunctionManagement from '@/pages/function'
+import H5ReportPage from '@/pages/h5-report'
 import { useUserStore } from '@/store/user'
 import { ComponentType } from 'react'
 
@@ -53,6 +54,11 @@ const routes = [
     path: '/embed/viewer',
     element: <div style={{ padding: 0, minHeight: '100vh' }}>嵌入式报表查看</div>,
     meta: { title: '报表查看' }
+  },
+  {
+    path: '/h5/report/:id',
+    element: <H5ReportPage />,
+    meta: { title: '移动端报表' }
   },
   {
     path: '/',
