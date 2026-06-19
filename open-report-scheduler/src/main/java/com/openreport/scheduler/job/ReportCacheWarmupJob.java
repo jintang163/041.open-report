@@ -55,7 +55,7 @@ public class ReportCacheWarmupJob {
             XxlJobHelper.log("预热参数: limit={}, threshold={}, statsDays={}", limit, threshold, statsDays);
 
             Map<String, Object> warmupResult = schedulerApiClient.postForMap(
-                    String.format("/report-cache/warmup/hot?limit=%d&minAccessCount=%d&statsDays=%d",
+                    String.format("/report-cache/warmup/hot-param-combos?limit=%d&minAccessCount=%d&statsDays=%d",
                             limit, threshold, statsDays), null);
 
             logger.info("预热执行结果: {}", warmupResult);
@@ -142,21 +142,25 @@ public class ReportCacheWarmupJob {
 
     @XxlJob("reportCacheCleanupJob")
     public void reportCacheCleanupJob() {
-        logger.info("过期缓存清理任务开始执行（按 TTL 自动过期，此处仅记录统计信息）");
-        XxlJobHelper.log("过期缓存清理任务开始执行");
+        logger.info("缓存清理任务开始执行 - 淘汰过期键");
+        XxlJobHelper.log("缓存清理任务开始执行 - 淘汰过期键");
         try {
-            Map<String, Object> info = schedulerApiClient.getForMap("/report-cache/info");
-            if (info != null && Boolean.TRUE.equals(info.get("success"))) {
-                Object data = info.get("data");
-                String summary = String.format("缓存状态检查完成: %s", data != null ? data.toString() : "无数据");
+            Map<String, Object> result = schedulerApiClient.postForMap(
+                    "/report-cache/cleanup", null);
+
+            if (Boolean.TRUE.equals(result.get("success"))) {
+                Object data = result.get("data");
+                String summary = String.format("缓存清理完成: %s", data != null ? data.toString() : "无数据");
                 XxlJobHelper.handleSuccess(summary);
                 logger.info(summary);
             } else {
-                XxlJobHelper.handleSuccess("缓存状态检查完成（无数据）");
+                String errorMsg = result.get("message") != null ? result.get("message").toString() : "unknown error";
+                XxlJobHelper.handleFail("缓存清理任务失败: " + errorMsg);
+                logger.error("缓存清理任务失败: {}", errorMsg);
             }
         } catch (Exception e) {
-            logger.error("缓存检查任务异常", e);
-            XxlJobHelper.handleFail("缓存检查任务异常: " + e.getMessage());
+            logger.error("缓存清理任务异常", e);
+            XxlJobHelper.handleFail("缓存清理任务异常: " + e.getMessage());
         }
     }
 

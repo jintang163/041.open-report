@@ -40,6 +40,13 @@ public class ReportCacheController {
         return Result.success(info);
     }
 
+    @ApiOperation("执行缓存清理（淘汰过期键）")
+    @PostMapping("/cleanup")
+    @RequirePerms("report:cache:evict")
+    public Result<Map<String, Object>> cleanupExpired() {
+        return Result.success(reportCacheService.cleanupExpiredCache());
+    }
+
     @ApiOperation("查询指定报表缓存情况")
     @GetMapping("/info/{templateId}")
     @RequirePerms("report:cache:view")
@@ -64,6 +71,16 @@ public class ReportCacheController {
             @RequestParam(required = false) Integer minAccessCount,
             @RequestParam(required = false) Integer statsDays) {
         return Result.success(reportCacheService.warmupHotReports(limit, minAccessCount, statsDays));
+    }
+
+    @ApiOperation("按模板+参数哈希维度批量预热高频组合")
+    @PostMapping("/warmup/hot-param-combos")
+    @RequirePerms("report:cache:warmup")
+    public Result<List<Map<String, Object>>> warmupHotParamCombos(
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) Integer minAccessCount,
+            @RequestParam(required = false) Integer statsDays) {
+        return Result.success(reportCacheService.warmupHotParamCombos(limit, minAccessCount, statsDays));
     }
 
     @ApiOperation("清除指定报表缓存")
@@ -91,6 +108,18 @@ public class ReportCacheController {
         LocalDate end = LocalDate.now();
         LocalDate start = end.minusDays(Math.max(days - 1, 0));
         return Result.success(reportAccessLogService.getTopHotReports(start, end, limit));
+    }
+
+    @ApiOperation("按模板+参数哈希维度获取热门组合排行榜")
+    @GetMapping("/hot-param-combos")
+    @RequirePerms("report:cache:view")
+    public Result<List<Map<String, Object>>> getHotParamCombos(
+            @RequestParam(defaultValue = "7") Integer days,
+            @RequestParam(defaultValue = "50") Integer limit,
+            @RequestParam(defaultValue = "20") Integer threshold) {
+        LocalDate end = LocalDate.now();
+        LocalDate start = end.minusDays(Math.max(days - 1, 0));
+        return Result.success(reportAccessLogService.getHotParamCombos(start, end, threshold, limit));
     }
 
     @ApiOperation("获取整体访问和缓存统计")

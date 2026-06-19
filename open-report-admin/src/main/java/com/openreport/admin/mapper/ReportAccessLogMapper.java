@@ -35,6 +35,20 @@ public interface ReportAccessLogMapper extends BaseMapper<ReportAccessLog> {
             @Param("endDate") LocalDate endDate,
             @Param("threshold") Integer threshold);
 
+    @Select("SELECT template_id, params_hash, COUNT(*) as access_count " +
+            "FROM report_access_log " +
+            "WHERE access_date >= #{startDate} AND access_date <= #{endDate} " +
+            "  AND params_hash IS NOT NULL " +
+            "GROUP BY template_id, params_hash " +
+            "HAVING access_count >= #{threshold} " +
+            "ORDER BY access_count DESC " +
+            "LIMIT #{limit}")
+    List<Map<String, Object>> selectHotReportParamCombos(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("threshold") Integer threshold,
+            @Param("limit") Integer limit);
+
     @Select("SELECT DATE(create_time) as stat_date, " +
             "COUNT(*) as total_requests, " +
             "SUM(CASE WHEN hit_cache = 1 THEN 1 ELSE 0 END) as cache_hits, " +

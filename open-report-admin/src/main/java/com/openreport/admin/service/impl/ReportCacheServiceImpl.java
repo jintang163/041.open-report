@@ -21,6 +21,7 @@ public class ReportCacheServiceImpl implements ReportCacheService {
     private static final String CACHE_PREFIX = "report:cache:";
     private static final String CACHE_KEYS_SET = "report:cache:keys";
     private static final String DEFAULT_PARAMS_HASH = "default";
+    private static final String PARAMS_MAP_PREFIX = "report:params:";
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
@@ -63,16 +64,44 @@ public class ReportCacheServiceImpl implements ReportCacheService {
             cacheData.remove("fromCache");
             cacheData.remove("cacheKey");
 
-            if (ttlSeconds > 0) {
-                redisTemplate.opsForValue().set(cacheKey, cacheData, ttlSeconds, TimeUnit.SECONDS);
-            } else {
-                redisTemplate.opsForValue().set(cacheKey, cacheData, 12, TimeUnit.HOURS);
-            }
+            long actualTtl = ttlSeconds > 0 ? ttlSeconds : 43200L;
+            redisTemplate.opsForValue().set(cacheKey, cacheData, actualTtl, TimeUnit.SECONDS);
             redisTemplate.opsForSet().add(CACHE_KEYS_SET, cacheKey);
-            log.debug("报表数据已缓存: templateId={}, key={}, ttl={}s", templateId, cacheKey, ttlSeconds);
+            log.debug("报表数据已缓存: templateId={}, key={}, ttl={}s", templateId, cacheKey, actualTtl);
         } catch (Exception e) {
             log.warn("缓存报表数据失败: templateId={}, key={}", templateId, cacheKey, e);
         }
+    }
+
+    @Override
+    public void saveParamsMapping(Long templateId, String paramsHash, Map<String, Object> params) {
+        if (paramsHash == null || paramsHash.equals(DEFAULT_PARAMS_HASH)) return;
+        if (params == null || params.isEmpty()) return;
+        String key = PARAMS_MAP_PREFIX + templateId + ":" + paramsHash;
+        try {
+            redisTemplate.opsForValue().set(key, params, 7, TimeUnit.DAYS);
+            log.debug("参数映射已保存: templateId={}, hash={}", templateId, paramsHash);
+        } catch (Exception e) {
+            log.warn("保存参数映射失败: templateId={}, hash={}", templateId, paramsHash, e);
+        }
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getCachedParams(Long templateId, String paramsHash) {
+        if (paramsHash == null || paramsHash.equals(DEFAULT_PARAMS_HASH)) {
+            return new HashMap<>();
+        }
+        String key = PARAMS_MAP_PREFIX + templateId + ":" + paramsHash;
+        try {
+            Object val = redisTemplate.opsForValue().get(key);
+            if (val instanceof Map) {
+                return (Map<String, Object>) val;
+            }
+        } catch (Exception e) {
+            log.warn("获取参数映射失败: templateId={}, hash={}", templateId, paramsHash, e);
+        }
+        return new HashMap<>();
     }
 
     @Override
@@ -215,42 +244,89 @@ public class ReportCacheServiceImpl implements ReportCacheService {
     }
 
     @Override
-    public Map<String, Object> warmupReport(Long templateId, Map<String, Object> defaultParams) {
+    public Map<String, Object> cleanupExpiredCache() {
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("templateId", templateId);
-        long startTime = System.currentTimeMillis();
+        int checkedCount = 0;
+        int expiredCount = 0;
+        long freedBytes = 0;
+        List<String> removedKeys = new ArrayList<>();
+        List<String> keptKeys = new ArrayList<>();
+
         try {
-            ReportCacheWarmupConfig config = reportAccessLogService.getOrCreateDefaultConfig();
-            long ttl = config.getCacheTtlSeconds() != null ? config.getCacheTtlSeconds() : 43200L;
-
-            Map<String, Object> params = (defaultParams != null && !defaultParams.isEmpty())
-                    ? defaultParams : parseDefaultParams(config.getDefaultParamsJson());
-
-            Map<String, Object> reportData = reportExecuteService.executeReportInternal(templateId, params);
-            Boolean success = (Boolean) reportData.get("success");
-            if (Boolean.TRUE.equals(success)) {
-                String paramsHash = computeParamsHash(params);
-                cacheReport(templateId, paramsHash, reportData, ttl);
-                reportAccessLogService.incrementWarmupCount(templateId, LocalDate.now());
-                long elapsed = System.currentTimeMillis() - startTime;
-                result.put("success", true);
-                result.put("paramsHash", paramsHash);
-                result.put("cacheTtlSeconds", ttl);
-                result.put("elapsedMs", elapsed);
-                result.put("message", "预热成功，耗时 " + elapsed + "ms");
-                log.info("报表预热成功: templateId={}, 耗时={}ms", templateId, elapsed);
-            } else {
-                result.put("success", false);
-                result.put("message", reportData.get("message") != null ? reportData.get("message") : "报表执行失败");
+            Set<Object> keys = redisTemplate.opsForSet().members(CACHE_KEYS_SET);
+            if (keys == null || keys.isEmpty()) {
+                result.put("checkedCount", 0);
+                result.put("expiredCount", 0);
+                result.put("freedBytes", 0);
+                result.put("message", "没有缓存键需要清理");
+                return result;
             }
+
+            for (Object keyObj : keys) {
+                String key = String.valueOf(keyObj);
+                checkedCount++;
+                try {
+                    Long ttl = redisTemplate.getExpire(key, TimeUnit.SECONDS);
+                    boolean shouldRemove = false;
+
+                    if (ttl == null || ttl == -2) {
+                        shouldRemove = true;
+                    } else if (ttl == -1) {
+                        shouldRemove = false;
+                    } else if (ttl <= 60) {
+                        shouldRemove = true;
+                    }
+
+                    if (shouldRemove) {
+                        try {
+                            Object val = redisTemplate.opsForValue().get(key);
+                            if (val != null) {
+                                freedBytes += JSON.toJSONString(val).getBytes().length;
+                            }
+                        } catch (Exception ignored) {}
+                        Boolean deleted = redisTemplate.delete(key);
+                        if (Boolean.TRUE.equals(deleted)) {
+                            expiredCount++;
+                            removedKeys.add(key);
+                            log.debug("清理过期缓存: key={}, ttl={}s", key, ttl);
+                        }
+                    } else {
+                        keptKeys.add(key);
+                    }
+                } catch (Exception e) {
+                    log.warn("检查缓存键失败: key={}", key, e);
+                }
+            }
+
+            if (!removedKeys.isEmpty()) {
+                redisTemplate.opsForSet().remove(CACHE_KEYS_SET, removedKeys.toArray());
+            }
+
+            log.info("缓存清理完成: 检查={}, 清理={}, 释放字节={}", checkedCount, expiredCount, freedBytes);
         } catch (Exception e) {
-            long elapsed = System.currentTimeMillis() - startTime;
-            result.put("success", false);
-            result.put("message", "预热异常: " + e.getMessage());
-            result.put("elapsedMs", elapsed);
-            log.error("报表预热失败: templateId={}", templateId, e);
+            log.error("缓存清理异常", e);
+            result.put("error", e.getMessage());
         }
+
+        result.put("checkedCount", checkedCount);
+        result.put("expiredCount", expiredCount);
+        result.put("freedBytes", freedBytes);
+        result.put("freedMB", String.format("%.2f", freedBytes / 1024.0 / 1024.0));
+        result.put("removedKeys", removedKeys.size() > 50 ? removedKeys.subList(0, 50) : removedKeys);
+        result.put("keptCount", keptKeys.size());
+        result.put("message", String.format("清理完成：检查%d个，删除%d个过期键，释放%.2fMB",
+                checkedCount, expiredCount, freedBytes / 1024.0 / 1024.0));
         return result;
+    }
+
+    @Override
+    public Map<String, Object> warmupReport(Long templateId, Map<String, Object> defaultParams) {
+        Map<String, Object> actualParams = defaultParams;
+        if (actualParams == null || actualParams.isEmpty()) {
+            ReportCacheWarmupConfig config = reportAccessLogService.getOrCreateDefaultConfig();
+            actualParams = parseDefaultParams(config.getDefaultParamsJson());
+        }
+        return warmupReportInternal(templateId, actualParams, null);
     }
 
     @Override
@@ -303,6 +379,106 @@ public class ReportCacheServiceImpl implements ReportCacheService {
         }
         log.info("批量高频报表预热完成，成功处理 {} 个", count);
         return results;
+    }
+
+    @Override
+    public List<Map<String, Object>> warmupHotParamCombos(Integer limit, Integer minAccessCount, Integer statsDays) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        ReportCacheWarmupConfig config = reportAccessLogService.getOrCreateDefaultConfig();
+
+        int useLimit = (limit != null && limit > 0) ? limit :
+                (config.getMaxHotReports() != null ? config.getMaxHotReports() * 3 : 150);
+        int useThreshold = (minAccessCount != null && minAccessCount > 0) ? minAccessCount :
+                (config.getHotThreshold() != null ? config.getHotThreshold() : 50);
+        int useDays = (statsDays != null && statsDays > 0) ? statsDays :
+                (config.getStatsWindowDays() != null ? config.getStatsWindowDays() : 7);
+
+        LocalDate endDate = LocalDate.now();
+        LocalDate startDate = endDate.minusDays(useDays - 1);
+
+        List<Map<String, Object>> hotCombos = reportAccessLogService.getHotParamCombos(
+                startDate, endDate, useThreshold, useLimit);
+        if (hotCombos == null || hotCombos.isEmpty()) {
+            Map<String, Object> empty = new LinkedHashMap<>();
+            empty.put("info", "没有达到访问阈值的参数组合，阈值=" + useThreshold + ", 窗口=" + useDays + "天");
+            results.add(empty);
+            return results;
+        }
+
+        log.info("开始批量预热高频参数组合，候选数量={}, limit={}", hotCombos.size(), useLimit);
+        int count = 0;
+        int skipCount = 0;
+        for (Map<String, Object> combo : hotCombos) {
+            if (count >= useLimit) break;
+            try {
+                Long templateId = Long.valueOf(String.valueOf(combo.get("template_id")));
+                String paramsHash = String.valueOf(combo.get("params_hash"));
+                Object accessCountObj = combo.get("access_count");
+
+                Map<String, Object> cachedParams = getCachedParams(templateId, paramsHash);
+                if (cachedParams.isEmpty() && !DEFAULT_PARAMS_HASH.equals(paramsHash)) {
+                    log.debug("参数映射已过期，跳过: templateId={}, hash={}", templateId, paramsHash);
+                    skipCount++;
+                    continue;
+                }
+
+                Map<String, Object> warmupResult = warmupReportInternal(templateId, cachedParams, paramsHash);
+                warmupResult.put("accessCount", accessCountObj);
+                warmupResult.put("paramsHash", paramsHash);
+                results.add(warmupResult);
+                count++;
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                log.error("批量预热参数组合异常", e);
+                Map<String, Object> err = new LinkedHashMap<>();
+                err.put("templateId", combo.get("template_id"));
+                err.put("paramsHash", combo.get("params_hash"));
+                err.put("success", false);
+                err.put("message", e.getMessage());
+                results.add(err);
+            }
+        }
+        log.info("批量高频参数组合预热完成，成功={}, 跳过={}", count, skipCount);
+        return results;
+    }
+
+    private Map<String, Object> warmupReportInternal(Long templateId, Map<String, Object> params, String paramsHash) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("templateId", templateId);
+        long startTime = System.currentTimeMillis();
+        try {
+            ReportCacheWarmupConfig config = reportAccessLogService.getOrCreateDefaultConfig();
+            long ttl = config.getCacheTtlSeconds() != null ? config.getCacheTtlSeconds() : 43200L;
+
+            Map<String, Object> reportData = reportExecuteService.executeReportInternal(templateId, params);
+            Boolean success = (Boolean) reportData.get("success");
+            if (Boolean.TRUE.equals(success)) {
+                String hash = (paramsHash != null && !paramsHash.isEmpty())
+                        ? paramsHash : computeParamsHash(params);
+                cacheReport(templateId, hash, reportData, ttl);
+                reportAccessLogService.incrementWarmupCount(templateId, LocalDate.now());
+                long elapsed = System.currentTimeMillis() - startTime;
+                result.put("success", true);
+                result.put("paramsHash", hash);
+                result.put("cacheTtlSeconds", ttl);
+                result.put("elapsedMs", elapsed);
+                result.put("message", "预热成功，耗时 " + elapsed + "ms");
+                log.debug("参数组合预热成功: templateId={}, hash={}, 耗时={}ms", templateId, hash, elapsed);
+            } else {
+                result.put("success", false);
+                result.put("message", reportData.get("message") != null ? reportData.get("message") : "报表执行失败");
+            }
+        } catch (Exception e) {
+            long elapsed = System.currentTimeMillis() - startTime;
+            result.put("success", false);
+            result.put("message", "预热异常: " + e.getMessage());
+            result.put("elapsedMs", elapsed);
+            log.error("参数组合预热失败: templateId={}", templateId, e);
+        }
+        return result;
     }
 
     @SuppressWarnings("unchecked")

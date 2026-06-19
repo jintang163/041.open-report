@@ -70,6 +70,12 @@ public class ReportAccessLogServiceImpl implements ReportAccessLogService {
     }
 
     @Override
+    public List<Map<String, Object>> getHotParamCombos(LocalDate startDate, LocalDate endDate, Integer threshold, Integer limit) {
+        return accessLogMapper.selectHotReportParamCombos(startDate, endDate, threshold,
+                limit != null ? limit : 100);
+    }
+
+    @Override
     public Map<String, Object> getOverallStats(LocalDate startDate, LocalDate endDate) {
         List<Map<String, Object>> list = accessLogMapper.selectOverallStats(startDate, endDate);
         long totalRequests = 0;

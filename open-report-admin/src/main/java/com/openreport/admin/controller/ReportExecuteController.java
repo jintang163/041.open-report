@@ -2,6 +2,7 @@ package com.openreport.admin.controller;
 
 import com.openreport.admin.config.SecurityContextHolder;
 import com.openreport.admin.config.RequirePerms;
+import com.openreport.admin.entity.ReportCacheWarmupConfig;
 import com.openreport.admin.entity.ReportTemplate;
 import com.openreport.admin.service.DataSetService;
 import com.openreport.admin.service.ReportAccessLogService;
@@ -75,8 +76,10 @@ public class ReportExecuteController {
             if (success == null) success = true;
             if (Boolean.TRUE.equals(success) && (snapshotMode == null || snapshotMode.isEmpty())) {
                 try {
-                    long ttl = 43200L;
+                    ReportCacheWarmupConfig config = reportAccessLogService.getOrCreateDefaultConfig();
+                    long ttl = config.getCacheTtlSeconds() != null ? config.getCacheTtlSeconds() : 43200L;
                     reportCacheService.cacheReport(templateId, paramsHash, result, ttl);
+                    reportCacheService.saveParamsMapping(templateId, paramsHash, params);
                 } catch (Exception e) {
                     log.warn("自动缓存报表结果失败: templateId={}", templateId, e);
                 }

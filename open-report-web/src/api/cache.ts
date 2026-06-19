@@ -97,11 +97,47 @@ export const evictAllCache = (): Promise<void> => {
   return del('/report-cache/evict/all')
 }
 
+export const cleanupExpiredCache = (): Promise<{
+  checkedCount: number
+  expiredCount: number
+  freedBytes: number
+  freedMB: string
+  keptCount: number
+  message: string
+  removedKeys: string[]
+}> => {
+  return post('/report-cache/cleanup')
+}
+
 export const getHotReports = (
   days: number = 7,
   limit: number = 20
 ): Promise<HotReportItem[]> => {
   return get('/report-cache/hot-reports', { params: { days, limit } })
+}
+
+export const getHotParamCombos = (
+  days: number = 7,
+  limit: number = 50,
+  threshold: number = 20
+): Promise<Array<{
+  template_id: number
+  params_hash: string
+  access_count: number
+}>> => {
+  return get('/report-cache/hot-param-combos', { params: { days, limit, threshold } })
+}
+
+export const warmupHotParamCombos = (
+  limit?: number,
+  minAccessCount?: number,
+  statsDays?: number
+): Promise<WarmupResult[]> => {
+  const query: Record<string, any> = {}
+  if (limit !== undefined) query.limit = limit
+  if (minAccessCount !== undefined) query.minAccessCount = minAccessCount
+  if (statsDays !== undefined) query.statsDays = statsDays
+  return post('/report-cache/warmup/hot-param-combos', undefined, { params: query })
 }
 
 export const getOverallStats = (

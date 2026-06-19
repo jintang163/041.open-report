@@ -11,6 +11,10 @@ public interface ReportCacheService {
 
     void cacheReport(Long templateId, String paramsHash, Map<String, Object> data, long ttlSeconds);
 
+    void saveParamsMapping(Long templateId, String paramsHash, Map<String, Object> params);
+
+    Map<String, Object> getCachedParams(Long templateId, String paramsHash);
+
     String computeParamsHash(Map<String, Object> params);
 
     void evictCache(Long templateId);
@@ -23,7 +27,11 @@ public interface ReportCacheService {
 
     Map<String, Object> getOverallCacheInfo();
 
+    Map<String, Object> cleanupExpiredCache();
+
     Map<String, Object> warmupReport(Long templateId, Map<String, Object> defaultParams);
 
     List<Map<String, Object>> warmupHotReports(Integer limit, Integer minAccessCount, Integer statsDays);
+
+    List<Map<String, Object>> warmupHotParamCombos(Integer limit, Integer minAccessCount, Integer statsDays);
 }

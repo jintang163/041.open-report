@@ -142,4 +142,30 @@ INSERT INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `co
 (1052, 105, '交叉报表执行', 'F', NULL, NULL, 'pivot:designer:execute', NULL, 2, 1, NOW(), NOW(), 0),
 (1053, 105, '交叉报表导出', 'F', NULL, NULL, 'pivot:designer:export', NULL, 3, 1, NOW(), NOW(), 0);
 
+-- ----------------------------
+-- 缓存管理菜单和权限
+-- ----------------------------
+-- 缓存管理菜单（报表中心子菜单）
+INSERT INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `component`, `perms`, `icon`, `sort`, `visible`, `create_time`, `update_time`, `deleted`) VALUES
+(200, 2, '缓存管理', 'C', '/report/cache', 'report/cache/index', 'report:cache:view', 'cpu', 4, 1, NOW(), NOW(), 0);
+
+-- 缓存管理按钮权限
+INSERT INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `component`, `perms`, `icon`, `sort`, `visible`, `create_time`, `update_time`, `deleted`) VALUES
+(2001, 200, '缓存查询', 'F', NULL, NULL, 'report:cache:view', NULL, 1, 1, NOW(), NOW(), 0),
+(2002, 200, '缓存预热', 'F', NULL, NULL, 'report:cache:warmup', NULL, 2, 1, NOW(), NOW(), 0),
+(2003, 200, '缓存清理', 'F', NULL, NULL, 'report:cache:evict', NULL, 3, 1, NOW(), NOW(), 0),
+(2004, 200, '配置修改', 'F', NULL, NULL, 'report:cache:config', NULL, 4, 1, NOW(), NOW(), 0);
+
+-- ----------------------------
+-- 评论管理菜单和权限（报表中心子菜单）
+INSERT INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `component`, `perms`, `icon`, `sort`, `visible`, `create_time`, `update_time`, `deleted`) VALUES
+(201, 2, '评论管理', 'C', '/report/comment', 'report/comment/index', 'report:comment:list', 'message', 5, 1, NOW(), NOW(), 0);
+
+-- 评论管理按钮权限
+INSERT INTO `sys_menu` (`id`, `parent_id`, `menu_name`, `menu_type`, `path`, `component`, `perms`, `icon`, `sort`, `visible`, `create_time`, `update_time`, `deleted`) VALUES
+(2011, 201, '评论查询', 'F', NULL, NULL, 'report:comment:list', NULL, 1, 1, NOW(), NOW(), 0),
+(2012, 201, '评论添加', 'F', NULL, NULL, 'report:comment:add', NULL, 2, 1, NOW(), NOW(), 0),
+(2013, 201, '评论删除', 'F', NULL, NULL, 'report:comment:delete', NULL, 3, 1, NOW(), NOW(), 0),
+(2014, 201, '评论点赞', 'F', NULL, NULL, 'report:comment:like', NULL, 4, 1, NOW(), NOW(), 0);
+
 SET FOREIGN_KEY_CHECKS = 1;

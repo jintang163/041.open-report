@@ -16,6 +16,8 @@ public interface ReportAccessLogService {
 
     List<Map<String, Object>> getHotReportsWithThreshold(LocalDate startDate, LocalDate endDate, Integer threshold);
 
+    List<Map<String, Object>> getHotParamCombos(LocalDate startDate, LocalDate endDate, Integer threshold, Integer limit);
+
     Map<String, Object> getOverallStats(LocalDate startDate, LocalDate endDate);
 
     List<Map<String, Object>> getDailyStatsByTemplate(LocalDate date);
